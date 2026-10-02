@@ -1,13 +1,14 @@
 import json
 import os
 import re
+import time
 from typing import Literal
 
 import requests
 from google import genai
+from google.genai import errors
 from google.genai import types
 from pydantic import BaseModel, Field
-
 
 # ============================================================
 # CONFIGURAÇÕES
@@ -32,6 +33,10 @@ GEMINI_MODEL = os.environ.get(
     "gemini-3.6-flash",
 )
 
+GEMINI_FALLBACK_MODEL = os.environ.get(
+    "GEMINI_FALLBACK_MODEL",
+    "gemini-3.5-flash",
+)
 
 # ============================================================
 # MODELO DA RESPOSTA DO GEMINI
@@ -455,37 +460,96 @@ def analyze_with_gemini(prompt):
         api_key=GEMINI_API_KEY
     )
 
-    response = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=PRAnalysis,
-        ),
-    )
+    modelos = [
+        GEMINI_MODEL,
+        GEMINI_FALLBACK_MODEL,
+    ]
 
-    if not response.text:
-        raise RuntimeError(
-            "O Gemini retornou uma resposta vazia."
-        )
+    ultimo_erro = None
 
-    try:
-        return PRAnalysis.model_validate_json(
-            response.text
-        )
+    for indice_modelo, modelo in enumerate(modelos):
+        try:
+            print(
+                f"Tentando análise com {modelo}..."
+            )
 
-    except Exception as error:
-        print(
-            "Resposta recebida do Gemini:"
-        )
+            response = client.models.generate_content(
+                model=modelo,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=PRAnalysis,
+                ),
+            )
 
-        print(
-            response.text
-        )
+            if not response.text:
+                raise RuntimeError(
+                    "O Gemini retornou uma resposta vazia."
+                )
 
-        raise RuntimeError(
-            "O Gemini retornou JSON em formato inesperado."
-        ) from error
+            try:
+                return PRAnalysis.model_validate_json(
+                    response.text
+                )
+
+            except Exception as error:
+                print(
+                    "Resposta recebida do Gemini:"
+                )
+
+                print(
+                    response.text
+                )
+
+                raise RuntimeError(
+                    "O Gemini retornou JSON em formato inesperado."
+                ) from error
+
+        except errors.ServerError as error:
+            ultimo_erro = error
+
+            status_code = getattr(
+                error,
+                "code",
+                None
+            )
+
+            mensagem = str(error)
+
+            erro_temporario = (
+                status_code == 503
+                or
+                "503" in mensagem
+                or
+                "UNAVAILABLE" in mensagem
+                or
+                "high demand" in mensagem.lower()
+            )
+
+            if not erro_temporario:
+                raise
+
+            print(
+                f"O modelo {modelo} está temporariamente indisponível."
+            )
+
+            if indice_modelo < len(modelos) - 1:
+                print(
+                    "Aguardando 10 segundos antes de usar "
+                    "o modelo alternativo..."
+                )
+
+                time.sleep(10)
+
+                print(
+                    f"Tentando fallback com "
+                    f"{modelos[indice_modelo + 1]}..."
+                )
+
+    raise RuntimeError(
+        "Os modelos Gemini estão temporariamente "
+        "indisponíveis. Tente executar o workflow novamente."
+    ) from ultimo_erro
 
 
 # ============================================================
