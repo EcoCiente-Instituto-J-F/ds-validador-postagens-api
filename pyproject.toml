@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = ["modelo: baixa e roda o CLIP de verdade (lento; ~600 MB no primeiro uso)"]
+addopts = "-m 'not modelo'"
