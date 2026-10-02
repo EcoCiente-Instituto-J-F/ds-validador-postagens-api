@@ -8,3 +8,4 @@ atomic-agents>=2.0
 transformers>=4.44
 torch>=2.3
 prometheus-client>=0.20
+numpy>=1.26

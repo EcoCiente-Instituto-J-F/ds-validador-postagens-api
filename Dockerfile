@@ -18,7 +18,7 @@ ENV MODELO_CLIP=${MODELO_CLIP}
 RUN python -c "from transformers import pipeline; pipeline('zero-shot-image-classification', model='${MODELO_CLIP}')"
 ENV HF_HUB_OFFLINE=1
 
-COPY --chown=app validador_fotos ./validador_fotos
+COPY --chown=app src ./src
 
 EXPOSE 8000
-CMD ["uvicorn", "validador_fotos.api.app:criar_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.api.app:criar_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
