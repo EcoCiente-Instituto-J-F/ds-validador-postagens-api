@@ -6,7 +6,7 @@ import sys
 
 import psycopg
 
-from src import banco
+from src.validacao import banco
 
 log = logging.getLogger("validador_fotos.fechamento")
 
