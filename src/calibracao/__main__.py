@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 from src.calibracao.metricas import taxas, taxas_da_categoria
-from src.dominio.categorias import CATEGORIAS
-from src.visao.classificador import MODELO_PADRAO, ClassificadorClip
-from src.visao.foto import EXTENSOES, FotoInvalida, abrir_imagem
+from src.triagem.categorias import CATEGORIAS
+from src.triagem.classificador import MODELO_PADRAO, ClassificadorClip
+from src.triagem.foto import EXTENSOES, FotoInvalida, abrir_imagem
 
 LIMIARES = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
 
