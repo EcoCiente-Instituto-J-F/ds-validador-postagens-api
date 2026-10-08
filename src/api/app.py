@@ -13,10 +13,10 @@ from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, Field, ValidationError
 
-from src import banco
+from src.validacao import banco
 from src.api.metricas import Metricas
-from src.dominio.schemas import ValidarFotoInput, ValidarFotoOutput
-from src.tools.validar_foto_tool import ValidarFotoConfig, ValidarFotoTool
+from src.triagem.schemas import ValidarFotoInput, ValidarFotoOutput
+from src.triagem.tool import ValidarFotoConfig, ValidarFotoTool
 
 registro_de_vereditos = logging.getLogger("validador_fotos.veredito")
 STATUS_HTTP = {"pedido_invalido": 422, "foto_indisponivel": 502}
