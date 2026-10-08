@@ -1,8 +1,8 @@
 from atomic_agents.context import SystemPromptGenerator
 
 from src.agentes.contexto import TriagensFotosCtx
-from src.dominio.pertinencia import decidir_pertinencia
-from src.dominio.schemas import rejeitar_foto
+from src.triagem.pertinencia import decidir_pertinencia
+from src.triagem.schemas import rejeitar_foto
 
 
 def test_sem_triagens_avisa_que_nada_foi_analisado():

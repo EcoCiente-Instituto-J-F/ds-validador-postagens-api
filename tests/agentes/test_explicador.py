@@ -8,8 +8,8 @@ from src.agentes.explicador import (
     criar_explicador,
     triar_e_responder,
 )
-from src.dominio.schemas import ValidarFotoInput
-from src.tools.validar_foto_tool import ValidarFotoConfig, ValidarFotoTool
+from src.triagem.schemas import ValidarFotoInput
+from src.triagem.tool import ValidarFotoConfig, ValidarFotoTool
 
 
 def ClienteFalso() -> ClienteInstructorFalso:  # noqa: N802
