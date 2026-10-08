@@ -1,7 +1,7 @@
 """Métricas Prometheus do serviço. Registro próprio por app: testes criam vários apps sem colidir."""
 from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
 
-from src.dominio.schemas import ValidarFotoOutput
+from src.triagem.schemas import ValidarFotoOutput
 
 PERTINENTE = {True: "sim", False: "nao", None: "sem_veredito"}
 
