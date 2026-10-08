@@ -9,3 +9,4 @@ transformers>=4.44
 torch>=2.3
 prometheus-client>=0.20
 numpy>=1.26
+psycopg[binary]>=3.2

@@ -1,8 +1,8 @@
 # Validador de Fotos — EcoCiente
 
-Recebe a URL da foto de uma postagem e a categoria escolhida pelo morador, roda um modelo de visão (CLIP zero-shot, só CPU) e responde se a foto é pertinente. É a triagem automática de `tb_postagens` (`triagem_automatica_aprovada` / `triagem_automatica_confianca`): auxiliar — a votação comunitária continua decidindo.
+Dada uma postagem do banco do app, baixa a foto, compara com a categoria escolhida pelo morador, roda um modelo de visão (CLIP zero-shot, só CPU) e responde se a foto é pertinente. Grava a triagem automática em `tb_postagens` (`triagem_automatica_aprovada` / `triagem_automatica_confianca`): auxiliar — a votação comunitária continua decidindo. Também registra votos e a decisão do síndico sobre a postagem.
 
-O núcleo é a `ValidarFotoTool` (Atomic Agents). A API HTTP é um adaptador fino sobre ela; agentes podem usar a mesma tool direto.
+O núcleo é a `ValidarFotoTool` (Atomic Agents). A API HTTP é um adaptador sobre ela e sobre o banco (`src/banco.py`); agentes podem usar a mesma tool direto.
 
 ## Estrutura
 
@@ -13,6 +13,8 @@ src/
   tools/       validar_foto_tool.py (ValidarFotoTool + ValidarFotoConfig)
   agentes/     contexto.py (TriagensFotosCtx) · explicador.py (explica o resultado ao morador) · segunda_opiniao.py (modelo de visão e linguagem)
   api/         app.py (FastAPI) · metricas.py (Prometheus)
+  banco.py     acesso ao PostgreSQL do app (triagem, votos, decisão, trust scores)
+  fechamento.py  job que fecha as janelas de validação vencidas (python -m src.fechamento)
   calibracao/  python -m src.calibracao (limiar) · python -m src.calibracao.treinar (cabeça)
 tests/         espelha as pastas acima
 ```
@@ -35,17 +37,23 @@ Documentação interativa: http://localhost:8000/docs
 ```bash
 pytest             # unitários, sem modelo (segundos)
 pytest -m modelo   # carrega o CLIP de verdade
+pytest -m banco tests/banco   # integração com PostgreSQL de verdade (precisa de URL_BANCO_TESTE)
+```
+
+Os testes `banco` **dão `DROP SCHEMA public CASCADE`** a cada teste: use um banco descartável, nunca o do app (sem `URL_BANCO_TESTE`, ou com host que não seja `localhost`/`127.0.0.1`, eles são pulados).
+
+```bash
+docker run -d --name ecociente-pg-teste -e POSTGRES_PASSWORD=teste -p 55432:5432 postgres:16
+URL_BANCO_TESTE=postgresql://postgres:teste@localhost:55432/postgres pytest -m banco tests/banco
 ```
 
 ## Contrato HTTP
 
-`POST /v1/validacoes` com o header `X-Api-Key`:
+Todas as rotas exigem o header `X-Api-Key` e levam o id da postagem na URL. A API lê e grava no PostgreSQL do app (`URL_BANCO`); quem chama é o backend do app.
 
-```json
-{"url_foto": "https://<host do storage>/postagens/42.jpg", "categoria": "Plástico"}
-```
+### `POST /v1/postagens/{id}/triagem`
 
-`categoria` é o `nome_categoria` de `tb_lkp_categorias_residuos`; acento, maiúsculas e espaços são ignorados. Aceitas: papel, plastico, vidro, metal, organico.
+Sem corpo. A API lê `url_foto` e a categoria da postagem, baixa a foto, roda o CLIP e grava `triagem_automatica_aprovada` e `triagem_automatica_confianca` em `tb_postagens`. Chame depois do `INSERT` da postagem, com timeout de uns 30 s (download + inferência em CPU; pedidos simultâneos entram numa fila curta e, passando do limite, recebem 503). URLs assinadas (com `?X-Amz-Signature=...`) funcionam e a URL nunca vai para o log. A conexão com o banco não fica aberta durante o download e a inferência.
 
 Resposta 200:
 
@@ -55,21 +63,43 @@ Resposta 200:
  "mensagem": "A foto parece conter vidro, não plástico."}
 ```
 
-- `pertinente` é tri-estado: `true`, `false` ou `null`. `null` = sem veredito automático (só aparece com `LIMIAR_REVISAO` ligado: a foto vai para revisão humana; grave `NULL` em `triagem_automatica_aprovada`).
+- `pertinente` é tri-estado: `true`, `false` ou `null`. `null` = sem veredito automático (só aparece com `LIMIAR_REVISAO` ligado: a foto vai para revisão humana; a API grava `NULL` em `triagem_automatica_aprovada`).
 - `sinais`: indícios **informativos** (não mudam o veredito): `padrao_de_tela` (pico de frequência de moiré, o mais forte) e `sem_exif` (fraco: apps de mensagem também removem EXIF). Não foram calibrados com fotos reais; textura regular de verdade (tecido, persiana) também dispara `padrao_de_tela`. Se usar, combine os dois e comece só registrando.
 - `segunda_opiniao`: `true` quando o veredito veio do modelo de visão e linguagem (veja abaixo).
 - `alternativas`: as próximas classes mais prováveis (até 2), úteis para mensagens do tipo "vi vidro e plástico".
-- `hash_foto`: hash perceptual (16 hex). Para achar foto repetida, o app compara com os das postagens anteriores; distância de Hamming ≤ ~5 bits é a mesma foto (`src.visao.hash_perceptual.distancia`). O validador não guarda nada: quem tem o histórico é o banco do app.
+- `hash_foto`: hash perceptual (16 hex). Para achar foto repetida, compare com os das postagens anteriores; distância de Hamming ≤ ~5 bits é a mesma foto (`src.visao.hash_perceptual.distancia`). O validador não guarda o hash.
+- A categoria do banco precisa estar no catálogo do validador (papel, plastico, vidro, metal, organico; acento, maiúsculas e espaços são ignorados).
 
-| Status | Quando | O que o chamador faz |
+### `POST /v1/postagens/{id}/votos`
+
+```json
+{"usuario_id": 7, "tipo": "aprovar", "motivo_denuncia_id": null, "comentario": null}
+```
+
+`tipo` é `aprovar` ou `denunciar`; `motivo_denuncia_id` (para denúncia) e `comentario` (até 255 caracteres) são opcionais. Chama `sp_processar_voto_postagem` e responde 200 `{"saldo_confianca": 3, "pontuacao_ativa": true}`.
+
+### `POST /v1/postagens/{id}/decisao`
+
+```json
+{"usuario_id": 1, "aprovar": true}
+```
+
+Só o síndico do condomínio da postagem decide (`sp_decidir_postagem_analise`); depois a API atualiza os trust scores dos envolvidos. Responde 204 sem corpo.
+
+### Status
+
+| Status | Quando | O que o backend faz |
 |---|---|---|
-| 200 | veredito — inclusive arquivo que não é imagem ou grande demais (`pertinente: false`, `categoria_detectada`, `confianca` e `hash_foto` nulos) | grava `triagem_automatica_aprovada = pertinente` e `triagem_automatica_confianca = confianca`; mostra `mensagem` ao morador |
-| 401 | `X-Api-Key` errada ou ausente | erro de configuração: não grava nada |
-| 422 | categoria fora do catálogo, URL malformada ou host fora de `HOSTS_PERMITIDOS` | erro de integração: não grava (fica `NULL` = não processada) e registra no log |
-| 502 | o storage não entregou a foto (fora do ar, timeout, 404) | não grava; tenta de novo mais tarde, poucas vezes |
-| 503 | mais de `MAX_PEDIDOS_SIMULTANEOS` pedidos em andamento (header `Retry-After: 5`) | não grava; tenta de novo depois do intervalo |
+| 200 / 204 | triagem e voto / decisão feitos (a triagem de arquivo que não é imagem ou grande demais é 200 com `pertinente: false`) | mostra `mensagem` ao morador (triagem) ou o saldo (voto) |
+| 401 | `X-Api-Key` errada ou ausente | erro de configuração: não tenta de novo |
+| 403 | autor votando na própria postagem; quem decide não é o síndico do condomínio | mostra o erro ao usuário |
+| 404 | postagem inexistente | erro de integração |
+| 409 | usuário já votou nesta postagem | ignora; o voto anterior vale |
+| 422 | host da foto fora de `HOSTS_PERMITIDOS`, categoria fora do catálogo, corpo inválido, referência inválida (motivo de denúncia inexistente) ou regra recusada pelo procedure (`detail` traz a mensagem) | triagem: nada é gravado (fica `NULL` = não processada), registre no log |
+| 502 | o storage não entregou a foto (fora do ar, timeout, 404) | nada é gravado; tenta de novo mais tarde, poucas vezes |
+| 503 | mais de `MAX_PEDIDOS_SIMULTANEOS` triagens em andamento, ou banco de dados indisponível (header `Retry-After: 5` nos dois) | nada é gravado; tenta de novo depois do intervalo |
 
-Chame depois do `INSERT` da postagem, fora da transação, com timeout de uns 30 s (download + inferência em CPU; pedidos simultâneos entram numa fila curta e, passando do limite, recebem 503). URLs assinadas (com `?X-Amz-Signature=...`) funcionam e a URL nunca vai para o log.
+A API grava `triagem_automatica_*`. A reconciliação de pontos fica com a API de Pontuação, que consome `pontuacao_reconciliacao_pendente`.
 
 ## Usar como tool do Atomic Agents
 
@@ -110,6 +140,7 @@ A tool não levanta exceção por falha de rotina: confira `resultado.status` (`
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `CHAVE_API` | obrigatória na API (≥ 16 caracteres) | valor esperado no header `X-Api-Key` |
+| `URL_BANCO` | obrigatória na API e no job de fechamento | URL do PostgreSQL do app (`postgresql://usuario:senha@host:5432/banco`) |
 | `HOSTS_PERMITIDOS` | obrigatória | hosts do storage das fotos, separados por vírgula (anti-SSRF) |
 | `LIMIAR_CONFIANCA` | `0.5` | probabilidade mínima da categoria para aprovar |
 | `LIMIAR_REVISAO` | desligado | se definido (ex.: `0.3`), categoria certa com probabilidade entre ele e o limiar vira `pertinente: null` (revisão humana) em vez de recusada |
@@ -131,8 +162,33 @@ docker build -t ecociente-validador-fotos .
 - Porta 8000. Readiness e liveness em `GET /saude`. O modelo carrega antes de o servidor abrir a porta: dê folga no `initialDelaySeconds` da liveness.
 - 1 réplica e 1 worker: cada processo carrega o modelo inteiro na RAM.
 - Memória: meça com `docker stats --no-stream` com o modelo carregado e use ~1,5× o valor como `limits.memory`.
-- `CHAVE_API` num Secret; gere com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+- `CHAVE_API` e `URL_BANCO` no mesmo Secret (`validador-fotos`, o que o CronJob abaixo referencia); gere a chave com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 - Service `ClusterIP`: só os serviços do cluster chamam; não precisa de Ingress.
+- Fechamento das janelas de validação (24h): um CronJob roda `python -m src.fechamento` (não carrega o CLIP).
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fechamento-janelas
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0   # o próximo agendamento já tenta de novo
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: fechamento
+              image: ecociente-validador-fotos
+              command: ["python", "-m", "src.fechamento"]
+              env:
+                - name: URL_BANCO
+                  valueFrom:
+                    secretKeyRef: {name: validador-fotos, key: URL_BANCO}
+```
 
 
 ## Observabilidade

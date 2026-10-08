@@ -1,11 +1,14 @@
+import contextlib
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import httpx
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from src import banco
 from src.api.app import Configuracoes, criar_app
 from src.tools.validar_foto_tool import ValidarFotoTool
 
@@ -13,14 +16,46 @@ CHAVE = "chave-de-teste-com-mais-de-16"
 URL_FOTO = "https://storage.exemplo.com/postagens/42.png"
 
 
-def montar(conteudo: bytes, classificador, status_storage: int = 200, **config) -> TestClient:
-    configuracoes = Configuracoes(_env_file=None, chave_api=CHAVE, hosts_permitidos="storage.exemplo.com", **config)
+class BancoFalso:
+    """Dublê de src.banco: devolve os dados configurados e guarda o que a API gravou."""
+
+    def __init__(self):
+        self.dados = (URL_FOTO, "Plástico")
+        self.gravados = []
+
+
+@pytest.fixture(autouse=True)
+def banco_falso(monkeypatch):
+    falso = BancoFalso()
+    monkeypatch.setattr(banco, "dados_triagem", lambda conexao, id_postagem: falso.dados)
+    monkeypatch.setattr(banco, "gravar_triagem", lambda conexao, *args: falso.gravados.append(args))
+    return falso
+
+
+def montar(conteudo: bytes, classificador, status_storage: int = 200, conectar=None, **config) -> TestClient:
+    configuracoes = Configuracoes(
+        _env_file=None, chave_api=CHAVE, hosts_permitidos="storage.exemplo.com", url_banco="postgresql://teste", **config
+    )
     storage = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(status_storage, content=conteudo)))
-    return TestClient(criar_app(configuracoes, ValidarFotoTool(configuracoes, classificador, storage)))
+    conectar = conectar or (lambda: contextlib.nullcontext(None))
+    return TestClient(criar_app(configuracoes, ValidarFotoTool(configuracoes, classificador, storage), conectar))
 
 
-def validar(cliente: TestClient, categoria="Plástico", url=URL_FOTO, chave=CHAVE):
-    return cliente.post("/v1/validacoes", json={"url_foto": url, "categoria": categoria}, headers={"X-Api-Key": chave})
+def validar(cliente: TestClient, chave=CHAVE):
+    return cliente.post("/v1/postagens/42/triagem", headers={"X-Api-Key": chave})
+
+
+def cliente_de_banco() -> TestClient:
+    return montar(b"", None)
+
+
+def votar(cliente: TestClient, corpo=None, chave=CHAVE):
+    corpo = corpo or {"usuario_id": 7, "tipo": "aprovar"}
+    return cliente.post("/v1/postagens/42/votos", json=corpo, headers={"X-Api-Key": chave})
+
+
+def decidir(cliente: TestClient, chave=CHAVE):
+    return cliente.post("/v1/postagens/42/decisao", json={"usuario_id": 1, "aprovar": True}, headers={"X-Api-Key": chave})
 
 
 def test_foto_pertinente_devolve_veredito_completo(png_valido, classificador_falso):
@@ -68,17 +103,12 @@ def test_arquivo_que_nao_e_imagem_vira_veredito_nao_pertinente(classificador_fal
 def test_chave_api_errada_ou_ausente_retorna_401(png_valido, classificador_falso):
     cliente = montar(png_valido, classificador_falso)
     assert validar(cliente, chave="errada").status_code == 401
-    assert cliente.post("/v1/validacoes", json={"url_foto": URL_FOTO, "categoria": "vidro"}).status_code == 401
+    assert cliente.post("/v1/postagens/42/triagem").status_code == 401
 
 
-def test_categoria_fora_do_catalogo_retorna_422(png_valido, classificador_falso):
-    resposta = validar(montar(png_valido, classificador_falso), categoria="Eletrônico")
-    assert resposta.status_code == 422
-    assert "categoria desconhecida" in resposta.text
-
-
-def test_host_nao_permitido_retorna_422_sem_baixar(png_valido, classificador_falso):
-    resposta = validar(montar(png_valido, classificador_falso), url="https://169.254.169.254/latest/meta-data/")
+def test_host_nao_permitido_retorna_422_sem_baixar(png_valido, classificador_falso, banco_falso):
+    banco_falso.dados = ("https://169.254.169.254/latest/meta-data/", "Plástico")
+    resposta = validar(montar(png_valido, classificador_falso))
     assert resposta.status_code == 422
     assert "Host não permitido" in resposta.json()["detail"]
     assert classificador_falso.imagens == []
@@ -96,17 +126,27 @@ def test_saude(classificador_falso):
 
 def test_chave_api_curta_e_recusada():
     with pytest.raises(ValidationError):
-        Configuracoes(_env_file=None, chave_api="curta", hosts_permitidos="storage.exemplo.com")
+        Configuracoes(
+            _env_file=None, chave_api="curta", hosts_permitidos="storage.exemplo.com", url_banco="postgresql://teste"
+        )
 
 
 # ---------- rotação de chave, log e métricas ----------
 
 def test_chave_anterior_vale_durante_a_rotacao(png_valido, classificador_falso):
     configuracoes = Configuracoes(
-        _env_file=None, chave_api=CHAVE, chave_api_anterior="chave-antiga-com-mais-de-16", hosts_permitidos="storage.exemplo.com"
+        _env_file=None,
+        chave_api=CHAVE,
+        chave_api_anterior="chave-antiga-com-mais-de-16",
+        hosts_permitidos="storage.exemplo.com",
+        url_banco="postgresql://teste",
     )
     storage = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, content=png_valido)))
-    cliente = TestClient(criar_app(configuracoes, ValidarFotoTool(configuracoes, classificador_falso, storage)))
+    cliente = TestClient(
+        criar_app(
+            configuracoes, ValidarFotoTool(configuracoes, classificador_falso, storage), lambda: contextlib.nullcontext(None)
+        )
+    )
     assert validar(cliente, chave=CHAVE).status_code == 200
     assert validar(cliente, chave="chave-antiga-com-mais-de-16").status_code == 200
     assert validar(cliente, chave="outra-chave-qualquer-0000").status_code == 401
@@ -144,6 +184,7 @@ def test_variavel_vazia_no_ambiente_conta_como_ausente(monkeypatch):
     # depois da rotação o operador costuma deixar CHAVE_API_ANTERIOR= em branco; o serviço não pode deixar de subir
     monkeypatch.setenv("CHAVE_API", CHAVE)
     monkeypatch.setenv("HOSTS_PERMITIDOS", "storage.exemplo.com")
+    monkeypatch.setenv("URL_BANCO", "postgresql://teste")
     monkeypatch.setenv("CHAVE_API_ANTERIOR", "")
     monkeypatch.setenv("LIMIAR_REVISAO", "")
     configuracoes = Configuracoes(_env_file=None)
@@ -180,9 +221,168 @@ def test_a_vaga_volta_mesmo_quando_o_pedido_falha(png_valido, classificador_fals
     assert [validar(cliente).status_code for _ in range(3)] == [502, 502, 502]
 
 
-def test_url_assinada_com_query_e_aceita_e_nao_vai_para_o_log(png_valido, classificador_falso, caplog):
-    url = "https://storage.exemplo.com/postagens/42.png?X-Amz-Signature=segredo123&X-Amz-Expires=300"
+def test_url_assinada_com_query_e_aceita_e_nao_vai_para_o_log(png_valido, classificador_falso, caplog, banco_falso):
+    banco_falso.dados = ("https://storage.exemplo.com/postagens/42.png?X-Amz-Signature=segredo123&X-Amz-Expires=300", "Plástico")
     with caplog.at_level("INFO", logger="validador_fotos.veredito"):
-        resposta = validar(montar(png_valido, classificador_falso), url=url)
+        resposta = validar(montar(png_valido, classificador_falso))
     assert resposta.status_code == 200
     assert "segredo123" not in caplog.text
+
+
+# ---------- triagem grava no banco ----------
+
+def test_triagem_grava_veredito(png_valido, classificador_falso, banco_falso):
+    assert validar(montar(png_valido, classificador_falso)).status_code == 200
+    assert banco_falso.gravados == [(42, True, 91.23)]
+
+
+def test_triagem_nao_grava_quando_storage_falha(png_valido, classificador_falso, banco_falso):
+    assert validar(montar(png_valido, classificador_falso, status_storage=503)).status_code == 502
+    assert banco_falso.gravados == []
+
+
+def test_conexao_fechada_durante_o_clip(png_valido):
+    estado = {"abertas": 0, "aberturas": 0}
+
+    @contextlib.contextmanager
+    def conectar():
+        estado["abertas"] += 1
+        estado["aberturas"] += 1
+        try:
+            yield None
+        finally:
+            estado["abertas"] -= 1
+
+    class Conferente:
+        def ranking(self, imagem):
+            assert estado["abertas"] == 0  # conexão aberta durante a inferência seguraria o banco à toa
+            return [("plastico", 0.9)]
+
+    assert validar(montar(png_valido, Conferente(), conectar=conectar)).status_code == 200
+    assert estado["aberturas"] == 2
+
+
+def test_categoria_do_banco_fora_do_catalogo_422(png_valido, classificador_falso, banco_falso):
+    banco_falso.dados = (URL_FOTO, "Eletrônicos")
+    resposta = validar(montar(png_valido, classificador_falso))
+    assert resposta.status_code == 422
+    assert "Eletrônicos" in resposta.json()["detail"]
+    assert classificador_falso.imagens == []
+    assert banco_falso.gravados == []
+
+
+def test_triagem_postagem_inexistente_404(monkeypatch, png_valido, classificador_falso):
+    def inexistente(conexao, id_postagem):
+        raise banco.PostagemNaoEncontrada(id_postagem)
+
+    monkeypatch.setattr(banco, "dados_triagem", inexistente)
+    resposta = validar(montar(png_valido, classificador_falso))
+    assert resposta.status_code == 404
+    assert resposta.json() == {"detail": "Postagem não encontrada."}
+
+
+def test_log_traz_id_postagem(png_valido, classificador_falso, caplog):
+    with caplog.at_level("INFO", logger="validador_fotos.veredito"):
+        validar(montar(png_valido, classificador_falso))
+    assert json.loads(caplog.records[-1].getMessage())["id_postagem"] == 42
+
+
+# ---------- votos e decisão ----------
+
+def trocar(monkeypatch, nome, retorno=None, erro=None):
+    chamadas = []
+
+    def duble(conexao, *args):
+        chamadas.append(args)
+        if erro:
+            raise erro
+        return retorno
+
+    monkeypatch.setattr(banco, nome, duble)
+    return chamadas
+
+
+def test_voto_devolve_saldo(monkeypatch):
+    chamadas = trocar(monkeypatch, "votar", retorno=(3, True))
+    resposta = votar(cliente_de_banco())
+    assert resposta.status_code == 200
+    assert resposta.json() == {"saldo_confianca": 3, "pontuacao_ativa": True}
+    assert chamadas == [(42, 7, "aprovar", None, None)]
+
+
+def test_autovoto_403(monkeypatch):
+    trocar(monkeypatch, "votar", erro=banco.AutoVoto(7))
+    resposta = votar(cliente_de_banco())
+    assert resposta.status_code == 403
+    assert resposta.json() == {"detail": "O autor não pode votar na própria postagem."}
+
+
+def test_voto_repetido_409(monkeypatch):
+    trocar(monkeypatch, "votar", erro=psycopg.errors.UniqueViolation("x"))
+    resposta = votar(cliente_de_banco())
+    assert resposta.status_code == 409
+    assert resposta.json() == {"detail": "Usuário já votou nesta postagem."}
+
+
+def test_erro_do_procedure_vira_422_com_a_mensagem(monkeypatch):
+    trocar(monkeypatch, "votar", erro=psycopg.errors.RaiseException("Postagem já resolvida"))
+    resposta = votar(cliente_de_banco())
+    assert resposta.status_code == 422
+    assert resposta.json() == {"detail": "Postagem já resolvida"}
+
+
+def test_motivo_inexistente_422(monkeypatch):
+    trocar(monkeypatch, "votar", erro=psycopg.errors.ForeignKeyViolation("x"))
+    resposta = votar(cliente_de_banco(), {"usuario_id": 7, "tipo": "denunciar", "motivo_denuncia_id": 999})
+    assert resposta.status_code == 422
+    assert "Referência inválida" in resposta.json()["detail"]
+
+
+def test_tipo_de_voto_invalido_422(monkeypatch):
+    chamadas = trocar(monkeypatch, "votar", retorno=(0, False))
+    assert votar(cliente_de_banco(), {"usuario_id": 7, "tipo": "curtir"}).status_code == 422
+    assert chamadas == []
+
+
+def test_decisao_204(monkeypatch):
+    chamadas = trocar(monkeypatch, "decidir")
+    resposta = decidir(cliente_de_banco())
+    assert resposta.status_code == 204
+    assert resposta.content == b""
+    assert chamadas == [(42, 1, True)]
+
+
+def test_decisao_de_nao_sindico_403(monkeypatch):
+    trocar(monkeypatch, "decidir", erro=banco.NaoESindico(1))
+    resposta = decidir(cliente_de_banco())
+    assert resposta.status_code == 403
+    assert resposta.json() == {"detail": "Só o síndico do condomínio decide postagens em análise."}
+
+
+def test_rota_antiga_sumiu():
+    resposta = cliente_de_banco().post(
+        "/v1/validacoes", json={"url_foto": URL_FOTO, "categoria": "Plástico"}, headers={"X-Api-Key": CHAVE}
+    )
+    assert resposta.status_code == 404
+
+
+def test_rotas_novas_exigem_chave():
+    cliente = cliente_de_banco()
+    assert cliente.post("/v1/postagens/42/votos", json={"usuario_id": 7, "tipo": "aprovar"}).status_code == 401
+    assert cliente.post("/v1/postagens/42/decisao", json={"usuario_id": 1, "aprovar": True}).status_code == 401
+
+
+def test_id_fora_do_int4_422(monkeypatch):
+    chamadas = trocar(monkeypatch, "votar", retorno=(0, False))
+    assert votar(cliente_de_banco(), {"usuario_id": 2**31, "tipo": "aprovar"}).status_code == 422
+    assert chamadas == []
+
+
+def test_banco_fora_do_ar_503_com_retry_after(png_valido, classificador_falso):
+    def conectar():
+        raise psycopg.OperationalError("connection refused")
+
+    resposta = validar(montar(png_valido, classificador_falso, conectar=conectar))
+    assert resposta.status_code == 503
+    assert resposta.headers["Retry-After"] == "5"
+    assert resposta.json() == {"detail": "Banco de dados indisponível; tente de novo."}
