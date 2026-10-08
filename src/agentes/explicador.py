@@ -10,8 +10,8 @@ from atomic_agents.context import ChatHistory, SystemPromptGenerator
 from pydantic import Field
 
 from src.agentes.contexto import TriagensFotosCtx
-from src.dominio.schemas import ValidarFotoInput
-from src.tools.validar_foto_tool import ValidarFotoTool
+from src.triagem.schemas import ValidarFotoInput
+from src.triagem.tool import ValidarFotoTool
 
 
 class PerguntaMoradorInput(BaseIOSchema):
