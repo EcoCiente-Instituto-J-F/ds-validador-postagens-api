@@ -5,7 +5,7 @@ from typing import Protocol
 import numpy as np
 from PIL import Image
 
-from src.dominio.categorias import TODAS_AS_CLASSES
+from src.triagem.categorias import TODAS_AS_CLASSES
 
 MODELO_PADRAO = "openai/clip-vit-base-patch32"
 
