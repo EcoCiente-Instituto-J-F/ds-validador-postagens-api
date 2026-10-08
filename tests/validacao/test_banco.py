@@ -3,8 +3,8 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from src import banco, fechamento
-from tests.banco.conftest import nova_postagem, vencer
+from src.validacao import banco, fechamento
+from tests.validacao.conftest import nova_postagem, vencer
 
 pytestmark = pytest.mark.banco
 

@@ -4,7 +4,7 @@ import logging
 import psycopg
 import pytest
 
-from src import banco, fechamento
+from src.validacao import banco, fechamento
 
 
 class ConexaoFalsa:
