@@ -5,14 +5,14 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.agentes.segunda_opiniao import SegundaOpiniao
-from src.dominio.categorias import CATEGORIAS, normalizar_categoria
-from src.dominio.pertinencia import decidir_pertinencia
-from src.dominio.schemas import ValidarFotoInput, ValidarFotoOutput, rejeitar_foto
-from src.visao.cabeca import CabecaTreinada, ClassificadorCabeca
-from src.visao.classificador import MODELO_PADRAO, Classificador, ClassificadorClip
-from src.visao.hash_perceptual import dhash
-from src.visao.sinais import sem_exif, tem_padrao_de_tela
-from src.visao.foto import FotoIndisponivel, FotoInvalida, PedidoInvalido, abrir_imagem, baixar_foto
+from src.triagem.categorias import CATEGORIAS, normalizar_categoria
+from src.triagem.pertinencia import decidir_pertinencia
+from src.triagem.schemas import ValidarFotoInput, ValidarFotoOutput, rejeitar_foto
+from src.triagem.cabeca import CabecaTreinada, ClassificadorCabeca
+from src.triagem.classificador import MODELO_PADRAO, Classificador, ClassificadorClip
+from src.triagem.hash_perceptual import dhash
+from src.triagem.sinais import sem_exif, tem_padrao_de_tela
+from src.triagem.foto import FotoIndisponivel, FotoInvalida, PedidoInvalido, abrir_imagem, baixar_foto
 
 
 class ValidarFotoConfig(BaseSettings):

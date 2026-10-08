@@ -3,10 +3,10 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from src.dominio.schemas import ValidarFotoInput, ValidarFotoOutput
-from src.tools.validar_foto_tool import ValidarFotoConfig, ValidarFotoTool
-from src.visao.cabeca import ClassificadorCabeca, treinar_cabeca
-from src.visao.classificador import MODELO_PADRAO
+from src.triagem.schemas import ValidarFotoInput, ValidarFotoOutput
+from src.triagem.tool import ValidarFotoConfig, ValidarFotoTool
+from src.triagem.cabeca import ClassificadorCabeca, treinar_cabeca
+from src.triagem.classificador import MODELO_PADRAO
 
 # ---------- ValidarFotoTool ----------
 
@@ -190,14 +190,14 @@ class ClipFalso:
 
 
 def test_sem_cabeca_a_tool_usa_o_clip_zero_shot(monkeypatch):
-    monkeypatch.setattr("src.tools.validar_foto_tool.ClassificadorClip", ClipFalso)
+    monkeypatch.setattr("src.triagem.tool.ClassificadorClip", ClipFalso)
     ferramenta = ValidarFotoTool(ValidarFotoConfig(_env_file=None, hosts_permitidos="x.com", modelo_clip="outro/clip"))
     assert isinstance(ferramenta.classificador, ClipFalso)
     assert ferramenta.classificador.nome_modelo == "outro/clip"
 
 
 def test_com_cabeca_a_tool_classifica_pelos_embeddings(monkeypatch, tmp_path):
-    monkeypatch.setattr("src.tools.validar_foto_tool.ClassificadorClip", ClipFalso)
+    monkeypatch.setattr("src.triagem.tool.ClassificadorClip", ClipFalso)
     rng = np.random.default_rng(0)
     treinar_cabeca(rng.normal(0, 1, (20, 4)), ["vidro", "metal"] * 10, modelo=MODELO_PADRAO).salvar(tmp_path / "cabeca.npz")
     config = ValidarFotoConfig(_env_file=None, hosts_permitidos="x.com", cabeca_treinada=str(tmp_path / "cabeca.npz"))
@@ -205,7 +205,7 @@ def test_com_cabeca_a_tool_classifica_pelos_embeddings(monkeypatch, tmp_path):
 
 
 def test_cabeca_treinada_com_outro_clip_e_recusada_na_subida(monkeypatch, tmp_path):
-    monkeypatch.setattr("src.tools.validar_foto_tool.ClassificadorClip", ClipFalso)
+    monkeypatch.setattr("src.triagem.tool.ClassificadorClip", ClipFalso)
     rng = np.random.default_rng(0)
     treinar_cabeca(rng.normal(0, 1, (20, 4)), ["vidro", "metal"] * 10, modelo="outro/clip").salvar(tmp_path / "cabeca.npz")
     config = ValidarFotoConfig(_env_file=None, hosts_permitidos="x.com", cabeca_treinada=str(tmp_path / "cabeca.npz"))

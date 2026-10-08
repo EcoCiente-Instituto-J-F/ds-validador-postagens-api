@@ -1,6 +1,6 @@
 """Regra de pertinência: junta a categoria escolhida com o ranking do modelo."""
-from src.dominio.categorias import CATEGORIAS, NAO_RESIDUO
-from src.dominio.schemas import Alternativa, ValidarFotoOutput
+from src.triagem.categorias import CATEGORIAS, NAO_RESIDUO
+from src.triagem.schemas import Alternativa, ValidarFotoOutput
 
 ALTERNATIVAS_MAX = 2
 

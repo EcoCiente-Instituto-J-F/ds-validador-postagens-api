@@ -1,5 +1,5 @@
 """Métricas da calibração: não dependem do modelo, então testam sem baixar o CLIP."""
-from src.dominio.categorias import CATEGORIAS
+from src.triagem.categorias import CATEGORIAS
 
 
 def taxas(resultados: list[tuple[str, str, float]], limiar: float) -> tuple[float, float]:

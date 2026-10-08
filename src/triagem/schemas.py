@@ -4,7 +4,7 @@ from typing import Literal
 from atomic_agents import BaseIOSchema
 from pydantic import Field, field_validator
 
-from src.dominio.categorias import CATEGORIAS, normalizar_categoria
+from src.triagem.categorias import CATEGORIAS, normalizar_categoria
 
 Status = Literal["ok", "pedido_invalido", "foto_indisponivel"]
 

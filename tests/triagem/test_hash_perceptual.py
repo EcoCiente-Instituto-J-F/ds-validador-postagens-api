@@ -1,6 +1,6 @@
 from PIL import Image, ImageFilter
 
-from src.visao.hash_perceptual import dhash, distancia
+from src.triagem.hash_perceptual import dhash, distancia
 
 
 def degrade(inverso: bool = False) -> Image.Image:

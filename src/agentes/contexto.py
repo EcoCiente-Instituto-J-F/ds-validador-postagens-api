@@ -3,7 +3,7 @@ from collections import deque
 
 from atomic_agents.context import BaseDynamicContextProvider
 
-from src.dominio.schemas import ValidarFotoOutput
+from src.triagem.schemas import ValidarFotoOutput
 
 
 class TriagensFotosCtx(BaseDynamicContextProvider):

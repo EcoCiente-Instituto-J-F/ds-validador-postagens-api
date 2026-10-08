@@ -10,9 +10,9 @@ from pathlib import Path
 
 import numpy as np
 
-from src.visao.cabeca import SLUGS, CabecaTreinada, treinar_cabeca
-from src.visao.classificador import MODELO_PADRAO, ClassificadorClip
-from src.visao.foto import EXTENSOES, FotoInvalida, abrir_imagem
+from src.triagem.cabeca import SLUGS, CabecaTreinada, treinar_cabeca
+from src.triagem.classificador import MODELO_PADRAO, ClassificadorClip
+from src.triagem.foto import EXTENSOES, FotoInvalida, abrir_imagem
 
 MIN_FOTOS = 20
 
