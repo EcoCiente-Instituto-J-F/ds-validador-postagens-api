@@ -8,16 +8,16 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from src import banco
+from src.validacao import banco
 from src.api.app import Configuracoes, criar_app
-from src.tools.validar_foto_tool import ValidarFotoTool
+from src.triagem.tool import ValidarFotoTool
 
 CHAVE = "chave-de-teste-com-mais-de-16"
 URL_FOTO = "https://storage.exemplo.com/postagens/42.png"
 
 
 class BancoFalso:
-    """Dublê de src.banco: devolve os dados configurados e guarda o que a API gravou."""
+    """Dublê de src.validacao.banco: devolve os dados configurados e guarda o que a API gravou."""
 
     def __init__(self):
         self.dados = (URL_FOTO, "Plástico")
