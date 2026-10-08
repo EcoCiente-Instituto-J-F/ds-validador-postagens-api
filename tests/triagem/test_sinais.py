@@ -3,7 +3,7 @@ import io
 import numpy as np
 from PIL import Image
 
-from src.visao.sinais import sem_exif, tem_padrao_de_tela
+from src.triagem.sinais import sem_exif, tem_padrao_de_tela
 
 
 def imagem_de(matriz: np.ndarray) -> Image.Image:

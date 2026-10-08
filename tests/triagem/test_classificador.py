@@ -1,8 +1,8 @@
 import pytest
 from PIL import Image
 
-from src.dominio.categorias import TODAS_AS_CLASSES
-from src.visao.classificador import MODELO_PADRAO, ClassificadorClip, agregar_por_classe
+from src.triagem.categorias import TODAS_AS_CLASSES
+from src.triagem.classificador import MODELO_PADRAO, ClassificadorClip, agregar_por_classe
 
 CLASSE_DO_PROMPT = {
     "a photo of a plastic bottle": "plastico",

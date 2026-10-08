@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from src.visao.cabeca import CabecaTreinada, ClassificadorCabeca, treinar_cabeca
+from src.triagem.cabeca import CabecaTreinada, ClassificadorCabeca, treinar_cabeca
 
 CLASSES = ["metal", "papel", "vidro"]
 

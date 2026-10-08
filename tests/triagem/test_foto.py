@@ -4,8 +4,8 @@ import httpx
 import pytest
 from PIL import Image
 
-from src.visao import foto
-from src.visao.foto import FotoIndisponivel, FotoInvalida, PedidoInvalido, abrir_imagem, baixar_foto
+from src.triagem import foto
+from src.triagem.foto import FotoIndisponivel, FotoInvalida, PedidoInvalido, abrir_imagem, baixar_foto
 
 HOSTS = frozenset({"storage.exemplo.com"})
 URL = "https://storage.exemplo.com/postagens/42.jpg"

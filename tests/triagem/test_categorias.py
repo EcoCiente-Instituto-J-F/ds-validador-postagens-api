@@ -1,4 +1,4 @@
-from src.dominio.categorias import CATEGORIAS, NAO_RESIDUO, TODAS_AS_CLASSES, normalizar_categoria
+from src.triagem.categorias import CATEGORIAS, NAO_RESIDUO, TODAS_AS_CLASSES, normalizar_categoria
 
 
 def test_normaliza_nome_vindo_do_banco():

@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from src.dominio.pertinencia import decidir_pertinencia
-from src.dominio.schemas import ValidarFotoInput, ValidarFotoOutput, rejeitar_foto
+from src.triagem.pertinencia import decidir_pertinencia
+from src.triagem.schemas import ValidarFotoInput, ValidarFotoOutput, rejeitar_foto
 
 LIMIAR = 0.5
 
