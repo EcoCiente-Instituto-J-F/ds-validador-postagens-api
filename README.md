@@ -1,20 +1,17 @@
 # Validador de Fotos — EcoCiente
 
-Dada uma postagem do banco do app, baixa a foto, compara com a categoria escolhida pelo morador, roda um modelo de visão (CLIP zero-shot, só CPU) e responde se a foto é pertinente. Grava a triagem automática em `tb_postagens` (`triagem_automatica_aprovada` / `triagem_automatica_confianca`): auxiliar — a votação comunitária continua decidindo. Também registra votos e a decisão do síndico sobre a postagem.
+Dada uma postagem do banco do app, baixa a foto, compara com a categoria escolhida pelo morador, roda um modelo de visão (CLIP zero-shot, só CPU) e responde se a foto é pertinente. Grava a triagem automática em `tb_postagens` (`triagem_automatica_aprovada` / `triagem_automatica_confianca`): auxiliar — a votação comunitária continua decidindo. Também registra votos e a decisão do síndico sobre a postagem. A postagem precisa de condomínio: usuário comum (sem condomínio) não posta foto.
 
-O núcleo é a `ValidarFotoTool` (Atomic Agents). A API HTTP é um adaptador sobre ela e sobre o banco (`src/banco.py`); agentes podem usar a mesma tool direto.
+O núcleo é a `ValidarFotoTool` (Atomic Agents). A API HTTP é um adaptador sobre ela e sobre o banco (`src/validacao/banco.py`); agentes podem usar a mesma tool direto.
 
 ## Estrutura
 
 ```
 src/
-  dominio/     categorias.py (catálogo e prompts) · schemas.py (entrada/saída da tool) · pertinencia.py (a regra)
-  visao/       foto.py (download seguro) · classificador.py (CLIP) · cabeca.py (cabeça treinada) · hash_perceptual.py (dHash) · sinais.py (foto de tela)
-  tools/       validar_foto_tool.py (ValidarFotoTool + ValidarFotoConfig)
+  triagem/     categorias.py (catálogo e prompts) · schemas.py (entrada/saída da tool) · pertinencia.py (a regra) · foto.py (download seguro) · classificador.py (CLIP) · cabeca.py (cabeça treinada) · hash_perceptual.py (dHash) · sinais.py (foto de tela) · tool.py (ValidarFotoTool + ValidarFotoConfig)
+  validacao/   banco.py (acesso ao PostgreSQL do app: triagem, votos, decisão, trust scores) · fechamento.py (job que fecha as janelas de validação vencidas: python -m src.validacao.fechamento)
   agentes/     contexto.py (TriagensFotosCtx) · explicador.py (explica o resultado ao morador) · segunda_opiniao.py (modelo de visão e linguagem)
   api/         app.py (FastAPI) · metricas.py (Prometheus)
-  banco.py     acesso ao PostgreSQL do app (triagem, votos, decisão, trust scores)
-  fechamento.py  job que fecha as janelas de validação vencidas (python -m src.fechamento)
   calibracao/  python -m src.calibracao (limiar) · python -m src.calibracao.treinar (cabeça)
 tests/         espelha as pastas acima
 ```
@@ -37,14 +34,14 @@ Documentação interativa: http://localhost:8000/docs
 ```bash
 pytest             # unitários, sem modelo (segundos)
 pytest -m modelo   # carrega o CLIP de verdade
-pytest -m banco tests/banco   # integração com PostgreSQL de verdade (precisa de URL_BANCO_TESTE)
+pytest -m banco tests/validacao   # integração com PostgreSQL de verdade (precisa de URL_BANCO_TESTE)
 ```
 
 Os testes `banco` **dão `DROP SCHEMA public CASCADE`** a cada teste: use um banco descartável, nunca o do app (sem `URL_BANCO_TESTE`, ou com host que não seja `localhost`/`127.0.0.1`, eles são pulados).
 
 ```bash
 docker run -d --name ecociente-pg-teste -e POSTGRES_PASSWORD=teste -p 55432:5432 postgres:16
-URL_BANCO_TESTE=postgresql://postgres:teste@localhost:55432/postgres pytest -m banco tests/banco
+URL_BANCO_TESTE=postgresql://postgres:teste@localhost:55432/postgres pytest -m banco tests/validacao
 ```
 
 ## Contrato HTTP
@@ -67,7 +64,7 @@ Resposta 200:
 - `sinais`: indícios **informativos** (não mudam o veredito): `padrao_de_tela` (pico de frequência de moiré, o mais forte) e `sem_exif` (fraco: apps de mensagem também removem EXIF). Não foram calibrados com fotos reais; textura regular de verdade (tecido, persiana) também dispara `padrao_de_tela`. Se usar, combine os dois e comece só registrando.
 - `segunda_opiniao`: `true` quando o veredito veio do modelo de visão e linguagem (veja abaixo).
 - `alternativas`: as próximas classes mais prováveis (até 2), úteis para mensagens do tipo "vi vidro e plástico".
-- `hash_foto`: hash perceptual (16 hex). Para achar foto repetida, compare com os das postagens anteriores; distância de Hamming ≤ ~5 bits é a mesma foto (`src.visao.hash_perceptual.distancia`). O validador não guarda o hash.
+- `hash_foto`: hash perceptual (16 hex). Para achar foto repetida, compare com os das postagens anteriores; distância de Hamming ≤ ~5 bits é a mesma foto (`src.triagem.hash_perceptual.distancia`). O validador não guarda o hash.
 - A categoria do banco precisa estar no catálogo do validador (papel, plastico, vidro, metal, organico; acento, maiúsculas e espaços são ignorados).
 
 ### `POST /v1/postagens/{id}/votos`
@@ -105,8 +102,8 @@ A API grava `triagem_automatica_*`. A reconciliação de pontos fica com a API d
 
 ```python
 from src.agentes.contexto import TriagensFotosCtx
-from src.dominio.schemas import ValidarFotoInput
-from src.tools.validar_foto_tool import ValidarFotoConfig, ValidarFotoTool
+from src.triagem.schemas import ValidarFotoInput
+from src.triagem.tool import ValidarFotoConfig, ValidarFotoTool
 
 ferramenta = ValidarFotoTool(ValidarFotoConfig())   # lê HOSTS_PERMITIDOS etc. do ambiente e carrega o CLIP
 triagens = TriagensFotosCtx()
@@ -124,7 +121,7 @@ Para o agente que explica o resultado ao morador, veja `src/agentes/explicador.p
 import instructor, openai   # ou anthropic, etc.
 from src.agentes.segunda_opiniao import SegundaOpiniaoVisao
 from src.api.app import Configuracoes, criar_app
-from src.tools.validar_foto_tool import ValidarFotoTool
+from src.triagem.tool import ValidarFotoTool
 
 def criar():
     config = Configuracoes()
@@ -164,7 +161,7 @@ docker build -t ecociente-validador-fotos .
 - Memória: meça com `docker stats --no-stream` com o modelo carregado e use ~1,5× o valor como `limits.memory`.
 - `CHAVE_API` e `URL_BANCO` no mesmo Secret (`validador-fotos`, o que o CronJob abaixo referencia); gere a chave com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 - Service `ClusterIP`: só os serviços do cluster chamam; não precisa de Ingress.
-- Fechamento das janelas de validação (24h): um CronJob roda `python -m src.fechamento` (não carrega o CLIP).
+- Fechamento das janelas de validação (24h): um CronJob roda `python -m src.validacao.fechamento` (não carrega o CLIP).
 
 ```yaml
 apiVersion: batch/v1
@@ -183,7 +180,7 @@ spec:
           containers:
             - name: fechamento
               image: ecociente-validador-fotos
-              command: ["python", "-m", "src.fechamento"]
+              command: ["python", "-m", "src.validacao.fechamento"]
               env:
                 - name: URL_BANCO
                   valueFrom:
