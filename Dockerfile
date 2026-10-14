@@ -1,24 +1,55 @@
-FROM python:3.12-slim
+# Build do jar com Java 21 (o cache das dependências fica numa camada própria)
+FROM eclipse-temurin:21-jdk AS build
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# torch só CPU: a roda padrão do PyPI no Linux traz CUDA (vários GB) e o cluster não tem GPU
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY gradlew gradlew.bat build.gradle settings.gradle ./
+COPY gradle ./gradle
 
-RUN useradd --create-home app
-USER app
-ENV HF_HOME=/home/app/.cache/huggingface
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew \
+    && ./gradlew dependencies --no-daemon > /dev/null
 
-# baixa o CLIP durante o build: o pod sobe sem depender do Hugging Face
-ARG MODELO_CLIP=openai/clip-vit-base-patch32
-ENV MODELO_CLIP=${MODELO_CLIP}
-RUN python -c "from transformers import pipeline; pipeline('zero-shot-image-classification', model='${MODELO_CLIP}')"
-ENV HF_HUB_OFFLINE=1
+COPY src ./src
 
-COPY --chown=app src ./src
+RUN ./gradlew clean bootJar -x test --no-daemon \
+    && JAR_FILE="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' | head -n 1)" \
+    && test -n "$JAR_FILE" \
+    && cp "$JAR_FILE" app.jar
+
+
+# Baixa os arquivos do CLIP durante o build: o pod sobe sem depender do Hugging Face.
+# Os tamanhos são conferidos para pegar download truncado (um arquivo parcial não passa do build).
+FROM alpine:3.20 AS modelo
+
+ARG CLIP_REVISAO=main
+ARG BASE_URL=https://huggingface.co/Xenova/clip-vit-base-patch32/resolve
+
+RUN apk add --no-cache curl
+
+RUN mkdir -p /modelos/clip-vit-base-patch32 && cd /modelos/clip-vit-base-patch32 \
+    && curl -fsSL --retry 5 -o vision_model.onnx "${BASE_URL}/${CLIP_REVISAO}/onnx/vision_model.onnx" \
+    && curl -fsSL --retry 5 -o text_model.onnx "${BASE_URL}/${CLIP_REVISAO}/onnx/text_model.onnx" \
+    && curl -fsSL --retry 5 -o tokenizer.json "${BASE_URL}/${CLIP_REVISAO}/tokenizer.json" \
+    && test "$(stat -c%s vision_model.onnx)" -eq 351685709 \
+    && test "$(stat -c%s text_model.onnx)" -eq 254058553 \
+    && test "$(stat -c%s tokenizer.json)" -gt 2000000
+
+
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+RUN groupadd --system app && useradd --system --gid app app
+
+COPY --from=build /app/app.jar app.jar
+COPY --from=modelo --chown=app:app /modelos /app/modelos
+
+USER app:app
+
+ENV CLIP_DIR=/app/modelos/clip-vit-base-patch32 \
+    SERVER_PORT=8000 \
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
 
 EXPOSE 8000
-CMD ["uvicorn", "src.api.app:criar_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

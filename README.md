@@ -6,7 +6,7 @@
 ![GitHub open issues](https://img.shields.io/github/issues/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
 ![GitHub open pull requests](https://img.shields.io/github/issues-pr/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
 
-> API de validação das postagens de reciclagem do EcoCiente. Faz a triagem automática da foto com um modelo de visão (CLIP, só CPU), registra os votos ponderados da comunidade e a decisão do síndico, e fecha a janela de validação de 24h, tudo sobre o PostgreSQL do app. A pontuação e o ranking ficam com a API de Pontuação, que lê `pontuacao_reconciliacao_pendente`.
+> API de validação das postagens de reciclagem do EcoCiente, em Java 21 e Spring Boot. Faz a triagem automática da foto com um modelo de visão (CLIP em ONNX Runtime, só CPU), registra os votos ponderados da comunidade e a decisão do síndico, e fecha a janela de validação de 24h, tudo sobre o PostgreSQL do app. A pontuação e o ranking ficam com a API de Pontuação, que lê `pontuacao_reconciliacao_pendente`.
 
 A postagem precisa de condomínio: usuário comum (sem condomínio) não posta foto. A triagem é um sinal auxiliar; quem decide é a votação comunitária. As regras de voto, histerese (-5 / ≥ 0), fechamento e trust_score vivem nos procedures do banco; a API só os chama.
 
@@ -17,45 +17,67 @@ O projeto ainda está em desenvolvimento e as próximas atualizações serão vo
 - [x] Triagem automática com CLIP gravando `triagem_automatica_aprovada` / `triagem_automatica_confianca`
 - [x] Votos ponderados (1 / 3 / 3) com bloqueio de autovoto
 - [x] Decisão do síndico para postagens em análise
-- [x] Fechamento da janela de 24h (CronJob) e recálculo do trust_score
-- [x] Testes de integração contra os procedures reais do PostgreSQL
-- [ ] Rodar o CLIP de verdade (`pytest -m modelo`) e o `docker build`
-- [ ] Calibrar o limiar com fotos reais (`python -m src.calibracao`)
+- [x] Fechamento da janela de 24h (job agendado na própria API) e recálculo do trust_score
+- [x] Migração de Python para Java 21 + Spring Boot, com o mesmo contrato HTTP
+- [x] Dockerfile com os modelos embutidos na imagem
+- [x] DHash conferido contra o algoritmo do Pillow (hashes gravados continuam comparáveis)
+- [ ] Rodar a imagem Docker e o teste de integração com PostgreSQL (`./gradlew testeBanco`, precisa de Docker)
+- [ ] Calibrar o limiar com fotos reais (`./gradlew calibrar`)
+- [ ] Suporte a HEIC (fotos de iPhone): o Java não decodifica HEIC hoje
 - [ ] Rebaixar "pessoa confiável" com histórico ruim (`sp_atualizar_trust_score` hoje só promove — ajuste no SQL)
 
 ## 💻 Pré-requisitos
 
 Antes de começar, verifique se você atendeu aos seguintes requisitos:
 
-- Você instalou o **Python 3.12+** (o atomic-agents 2.x exige).
-- Você tem o **Docker** para o PostgreSQL de teste e para a imagem de produção.
+- Você instalou o **JDK 21** (o Gradle wrapper do projeto baixa o Gradle 8.14.3 sozinho).
+- Você tem o **Docker** para o PostgreSQL de teste, para os testes de integração e para a imagem de produção.
 - Funciona em Windows, Linux e macOS (só CPU, sem GPU).
-- Você tem acesso ao PostgreSQL do app com o schema do EcoCiente (`tests/sql/ecociente_schema.sql`) e os lookups carregados (modelo em `tests/sql/seed_lookups.sql`).
+- Você tem acesso ao PostgreSQL do app com o schema do EcoCiente (`src/test/resources/sql/ecociente_schema.sql`) e os lookups carregados (`src/test/resources/sql/seed_lookups.sql`).
+- Você baixou os arquivos do CLIP (ver [Modelo de visão](#modelo-de-visão-clip)).
 
 ## 🚀 Instalando o Validador de Postagens
 
 Linux e macOS:
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
 cp .env.example .env
+./gradlew build
 ```
 
-Windows (Git Bash):
+Windows (PowerShell ou Prompt de Comando):
+
+```bat
+copy .env.example .env
+gradlew.bat build
+```
+
+### Modelo de visão (CLIP)
+
+A API precisa de três arquivos do CLIP ViT-B/32 em ONNX, na pasta indicada por `CLIP_DIR` (padrão `modelos/clip-vit-base-patch32`):
+
+| Arquivo | Tamanho aproximado | Origem |
+|---|---|---|
+| `vision_model.onnx` | 352 MB | [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32/tree/main/onnx) |
+| `text_model.onnx` | 254 MB | idem |
+| `tokenizer.json` | 2,2 MB | [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32/tree/main) |
 
 ```bash
-python -m venv .venv && source .venv/Scripts/activate
-pip install -r requirements-dev.txt
-cp .env.example .env
+mkdir -p modelos/clip-vit-base-patch32 && cd modelos/clip-vit-base-patch32
+B=https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main
+curl -fL -o vision_model.onnx "$B/onnx/vision_model.onnx"
+curl -fL -o text_model.onnx "$B/onnx/text_model.onnx"
+curl -fL -o tokenizer.json "$B/tokenizer.json"
 ```
+
+Confira os tamanhos: um arquivo truncado carrega até o meio e falha só na primeira foto.
 
 ## ☕ Usando o Validador de Postagens
 
-Suba a API (a 1ª vez baixa o CLIP, ~600 MB):
+Suba a API (a 1ª subida carrega o CLIP, leva alguns segundos):
 
 ```bash
-uvicorn src.api.app:criar_app --factory --reload
+./gradlew bootRun
 ```
 
 Documentação interativa: <http://localhost:8000/docs>
@@ -63,33 +85,29 @@ Documentação interativa: <http://localhost:8000/docs>
 Rode os testes:
 
 ```bash
-pytest                            # unitários, sem modelo (segundos)
-pytest -m modelo                  # carrega o CLIP de verdade
-pytest -m banco tests/validacao   # integração com PostgreSQL de verdade (precisa de URL_BANCO_TESTE)
+./gradlew test                  # unitários, sem modelo nem banco (segundos)
+./gradlew testeModelo           # carrega o CLIP de verdade (precisa de CLIP_DIR)
+./gradlew testeBanco            # integração com PostgreSQL via Testcontainers (precisa de Docker)
 ```
 
-Os testes `banco` **dão `DROP SCHEMA public CASCADE`** a cada teste: use um banco descartável, nunca o do app (sem `URL_BANCO_TESTE`, ou com host que não seja `localhost`/`127.0.0.1`, eles são pulados).
-
-```bash
-docker run -d --name ecociente-pg-teste -e POSTGRES_PASSWORD=teste -p 55432:5432 postgres:16
-URL_BANCO_TESTE=postgresql://postgres:teste@localhost:55432/postgres pytest -m banco tests/validacao
-```
+O teste `testeBanco` aplica o schema inteiro num container descartável; nunca aponta para o banco do app.
 
 ### Estrutura
 
 ```text
-src/
-  triagem/     categorias · schemas · pertinencia (a regra) · foto (download seguro) · classificador (CLIP) · cabeca (cabeça treinada) · hash_perceptual · sinais · tool (ValidarFotoTool)
-  validacao/   banco (PostgreSQL: triagem, votos, decisão, trust scores) · fechamento (job das janelas de 24h)
-  api/         app (FastAPI) · metricas (Prometheus)
-  agentes/     contexto (TriagensFotosCtx) · explicador · segunda_opiniao (modelo de visão e linguagem)
-  calibracao/  python -m src.calibracao (limiar) · python -m src.calibracao.treinar (cabeça)
-tests/         espelha as pastas acima
+src/main/java/br/com/ecociente/validador/
+  core/          domínio puro: domain (records, catálogo) · service (triagem, votos, decisão) · gateway (portas) · imagem (dHash, FFT, reamostragem) · exception
+  dataprovaider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer, cabeça treinada) · llm (segunda opinião)
+  entrypoint/    controller · dto · exception (contrato HTTP) · metricas (Prometheus)
+  config/        propriedades · segurança (X-Api-Key) · visão (carrega o CLIP) · job (fechamento das janelas)
+  agentes/       explicador ao morador e contexto das triagens (fora da API)
+  calibracao/    calibração do limiar e treino da cabeça (ferramentas de linha de comando)
+src/test/        espelha as pastas acima; "modelo" e "banco" ficam fora do ./gradlew test
 ```
 
 ### Contrato HTTP
 
-Todas as rotas exigem o header `X-Api-Key`, levam o id da postagem na URL e são chamadas só pelo backend do app.
+Todas as rotas de serviço exigem o header `X-Api-Key`, levam o id da postagem na URL e são chamadas só pelo backend do app. O corpo e as respostas são em snake_case.
 
 **`POST /v1/postagens/{id}/triagem`** — sem corpo. Lê `url_foto` e a categoria da postagem, baixa a foto, roda o CLIP e grava `triagem_automatica_aprovada` / `triagem_automatica_confianca`. Chame depois do `INSERT` da postagem, com timeout de ~30 s. A conexão com o banco não fica aberta durante o download e a inferência; a URL nunca vai para o log.
 
@@ -119,22 +137,30 @@ Todas as rotas exigem o header `X-Api-Key`, levam o id da postagem na URL e são
 | 502 | o storage não entregou a foto | tenta de novo mais tarde, poucas vezes |
 | 503 | fila de triagens cheia ou banco indisponível (`Retry-After: 5`) | tenta de novo depois do intervalo |
 
+Todos os erros têm o corpo `{"detail": "..."}`.
+
 ### Variáveis de ambiente
 
 | Variável | Padrão | Para quê |
 |---|---|---|
-| `CHAVE_API` | obrigatória na API (≥ 16 caracteres) | valor esperado no header `X-Api-Key` |
-| `URL_BANCO` | obrigatória na API e no job | URL do PostgreSQL do app (`postgresql://usuario:senha@host:5432/banco`) |
+| `CHAVE_API` | obrigatória (≥ 16 caracteres) | valor esperado no header `X-Api-Key` |
+| `DB_URL` | obrigatória | URL JDBC do PostgreSQL do app (`jdbc:postgresql://host:5432/banco`) |
+| `DB_USER` / `DB_PASSWORD` | obrigatórias | credenciais do banco |
 | `HOSTS_PERMITIDOS` | obrigatória | hosts do storage das fotos, separados por vírgula (anti-SSRF) |
+| `CLIP_DIR` | `modelos/clip-vit-base-patch32` | pasta com `vision_model.onnx`, `text_model.onnx` e `tokenizer.json` |
 | `LIMIAR_CONFIANCA` | `0.5` | probabilidade mínima da categoria para aprovar |
 | `LIMIAR_REVISAO` | desligado | se definido (ex.: `0.3`), probabilidade entre ele e o limiar vira `pertinente: null` |
-| `LIMIARES_POR_CATEGORIA` | `{}` | limiar por categoria, em JSON: `{"vidro": 0.6}` |
+| `LIMIARES_POR_CATEGORIA` | vazio | limiar por categoria, em JSON: `{"vidro": 0.6}` |
 | `MAX_PEDIDOS_SIMULTANEOS` | `8` | triagens em andamento; acima disso, 503 |
-| `CABECA_TREINADA` | desligada | `.npz` do treino; troca o zero-shot pela cabeça treinada |
+| `CABECA_TREINADA` | desligada | arquivo JSON gerado por `./gradlew treinarCabeca`; troca o zero-shot pela cabeça treinada |
 | `CHAVE_API_ANTERIOR` | desligada | chave antiga aceita durante a rotação; remova depois |
 | `TAMANHO_MAXIMO_BYTES` | `10000000` | tamanho máximo da foto |
 | `TIMEOUT_DOWNLOAD_SEGUNDOS` | `10` | timeout do download no storage |
-| `MODELO_CLIP` | `openai/clip-vit-base-patch32` | precisa ser um CLIP; no Docker, `--build-arg MODELO_CLIP=...` |
+| `FECHAMENTO_HABILITADO` | `true` | liga o job que encerra as janelas de 24h |
+| `SEGUNDA_OPINIAO_ATIVA` | `false` | liga a segunda opinião de um modelo de visão e linguagem (OpenAI-compatível) |
+| `SERVER_PORT` | `8000` | porta HTTP |
+
+> Migração: o serviço Python usava `URL_BANCO` (formato `postgresql://`) e `MODELO_CLIP` (id do Hugging Face). Na versão Java, use `DB_URL`/`DB_USER`/`DB_PASSWORD` e `CLIP_DIR`, e atualize o Secret do k8s.
 
 ### Deploy (k3s)
 
@@ -142,36 +168,12 @@ Todas as rotas exigem o header `X-Api-Key`, levam o id da postagem na URL e são
 docker build -t ecociente-validador-fotos .
 ```
 
-- O CLIP vai dentro da imagem (`HF_HUB_OFFLINE=1`): o pod sobe sem internet. Só CPU.
+- Os arquivos do CLIP vão dentro da imagem (baixados e conferidos no build): o pod sobe sem internet. Só CPU.
 - Porta 8000; readiness e liveness em `GET /saude` (dê folga no `initialDelaySeconds`: o modelo carrega antes de abrir a porta).
-- 1 réplica e 1 worker: cada processo carrega o modelo inteiro na RAM. Use ~1,5× o `docker stats` como `limits.memory`.
-- `CHAVE_API` e `URL_BANCO` no Secret `validador-fotos`; gere a chave com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+- 1 réplica: o job de fechamento roda dentro da API e cada processo carrega o modelo inteiro na RAM. A JVM usa até 75% da memória do contêiner (`JAVA_TOOL_OPTIONS`); ajuste o `limits.memory` pelo consumo medido.
+- `CHAVE_API` e `DB_*` no Secret `validador-fotos`; gere a chave com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 - Service `ClusterIP`: só os serviços do cluster chamam.
-- Fechamento das janelas de 24h: CronJob com `python -m src.validacao.fechamento` (não carrega o CLIP).
-
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: fechamento-janelas
-spec:
-  schedule: "*/5 * * * *"
-  concurrencyPolicy: Forbid
-  jobTemplate:
-    spec:
-      backoffLimit: 0   # o próximo agendamento já tenta de novo
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: fechamento
-              image: ecociente-validador-fotos
-              command: ["python", "-m", "src.validacao.fechamento"]
-              env:
-                - name: URL_BANCO
-                  valueFrom:
-                    secretKeyRef: {name: validador-fotos, key: URL_BANCO}
-```
+- O CronJob de fechamento das janelas não é mais necessário: o job roda dentro da API (desligue com `FECHAMENTO_HABILITADO=false` se preferir outro arranjo).
 
 ### Observabilidade
 
@@ -184,28 +186,15 @@ spec:
 Fotos reais em `amostras/<categoria>/` (papel, plastico, vidro, metal, organico) e `amostras/nao_residuo/`, ~20 por pasta, tiradas com celular:
 
 ```bash
-python -m src.calibracao amostras                   # tabela geral e por categoria
-python -m src.calibracao.treinar amostras cabeca.npz  # cabeça treinada vs zero-shot na mesma fatia
+./gradlew calibrar -PpastaAmostras=amostras                        # tabela geral e por categoria
+./gradlew treinarCabeca -PpastaAmostras=amostras -PsaidaCabeca=cabeca.json   # cabeça treinada vs zero-shot
 ```
 
-Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%. Só ligue `CABECA_TREINADA` se a cabeça vencer o zero-shot com folga; ela guarda o CLIP com que foi treinada e o serviço recusa subir com outro `MODELO_CLIP`.
+Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%. Só ligue `CABECA_TREINADA` se a cabeça vencer o zero-shot com folga; o arquivo guarda o CLIP com que foi treinada e o serviço recusa subir com outro modelo.
 
-### Usar como tool do Atomic Agents
+### Usar a triagem como ferramenta de um agente
 
-```python
-from src.agentes.contexto import TriagensFotosCtx
-from src.triagem.schemas import ValidarFotoInput
-from src.triagem.tool import ValidarFotoConfig, ValidarFotoTool
-
-ferramenta = ValidarFotoTool(ValidarFotoConfig())   # lê HOSTS_PERMITIDOS etc. do ambiente e carrega o CLIP
-triagens = TriagensFotosCtx()                        # um por conversa
-agente.register_context_provider("triagens_fotos", triagens)
-
-resultado = ferramenta.run(ValidarFotoInput(url_foto=url, categoria="Plástico"))
-triagens.registrar(resultado)
-```
-
-A tool não levanta exceção por falha de rotina: confira `resultado.status` (`ok`, `pedido_invalido`, `foto_indisponivel`). A **segunda opinião** (`SegundaOpiniaoVisao`, modelo de visão e linguagem para fotos na zona de revisão) é opcional e não vem ligada na API: custa uma chamada paga por foto incerta.
+A triagem é um serviço Java; para um agente (LLM) use o `ExplicadorMorador` e o `ContextoTriagens` do pacote `agentes`, que recebem um `ClienteChatOpenAi` (compatível com `/chat/completions`). A API não depende de LLM: a segunda opinião e o explicador são opcionais.
 
 ## 📫 Contribuindo para o Validador de Postagens
 

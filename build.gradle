@@ -1,0 +1,108 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.5.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'br.com.ecociente'
+version = '2.0.0'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// API REST
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	// Swagger / OpenAPI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+
+	// Acesso ao PostgreSQL com SQL direto (procedures do schema do app)
+	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+	implementation 'org.postgresql:postgresql'
+
+	// Validação dos DTOs
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Autenticação por X-Api-Key
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+
+	// Health checks e métricas (Prometheus em /metrics)
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+	// Modelo de visão CLIP em ONNX Runtime (só CPU)
+	implementation 'com.microsoft.onnxruntime:onnxruntime:1.31.0'
+
+	// Imagens: EXIF (orientação e presença) e WebP (o ImageIO padrão não lê)
+	implementation 'com.drewnoakes:metadata-extractor:2.21.0'
+	implementation 'org.sejda.imageio:webp-imageio:0.1.6'
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok:1.18.48'
+	annotationProcessor 'org.projectlombok:lombok:1.18.48'
+
+	// Desenvolvimento
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+	// Testes unitários: JUnit e Mockito
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+	// Testes de integração com PostgreSQL em container
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:postgresql'
+
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Testes "modelo" (carregam o CLIP de verdade) e "banco" (precisam de Docker) ficam fora do ./gradlew test
+tasks.named('test') {
+	useJUnitPlatform {
+		excludeTags 'modelo', 'banco'
+	}
+}
+
+tasks.register('testeModelo', Test) {
+	description = 'Roda os testes que carregam o modelo CLIP (precisa de CLIP_DIR com os arquivos ONNX).'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'modelo'
+	}
+}
+
+tasks.register('testeBanco', Test) {
+	description = 'Roda os testes de integração contra PostgreSQL (Testcontainers; precisa de Docker).'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'banco'
+	}
+}
+
+// Calibração e treino da cabeça: ./gradlew calibrar -PpastaAmostras=amostras
+tasks.register('calibrar', JavaExec) {
+	description = 'Mede o classificador em fotos reais (pastas amostras/<categoria>/).'
+	group = 'application'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'br.com.ecociente.validador.calibracao.CalibracaoMain'
+	args = [project.findProperty('pastaAmostras') ?: 'amostras']
+}
+
+tasks.register('treinarCabeca', JavaExec) {
+	description = 'Treina a cabeça sobre os embeddings do CLIP e compara com o zero-shot.'
+	group = 'application'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'br.com.ecociente.validador.calibracao.TreinamentoCabecaMain'
+	args = [project.findProperty('pastaAmostras') ?: 'amostras', project.findProperty('saidaCabeca') ?: 'cabeca.json']
+}

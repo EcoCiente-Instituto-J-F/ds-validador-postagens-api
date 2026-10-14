@@ -1,6 +1,31 @@
-.venv/
-__pycache__/
-.pytest_cache/
-.env
+# Gradle e build
+.gradle/
+build/
+bin/
+out/
+
+# Modelos e fotos de calibração (grandes ou sensíveis: nunca versionar)
+modelos/
 amostras/
-docs/
+cabeca.json
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Ambiente local
+.env
+.env.*
+!.env.example
+.venv/
+.pytest_cache/
+.superpowers/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
