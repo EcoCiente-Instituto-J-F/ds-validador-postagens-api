@@ -1,15 +1,25 @@
 import json
 import os
 import re
+<<<<<<< HEAD
 import time
+=======
+>>>>>>> 7f382e2 (Initial commit)
 from typing import Literal
 
 import requests
 from google import genai
+<<<<<<< HEAD
 from google.genai import errors
 from google.genai import types
 from pydantic import BaseModel, Field
 
+=======
+from google.genai import types
+from pydantic import BaseModel, Field
+
+
+>>>>>>> 7f382e2 (Initial commit)
 # ============================================================
 # CONFIGURAÇÕES
 # ============================================================
@@ -33,10 +43,13 @@ GEMINI_MODEL = os.environ.get(
     "gemini-3.6-flash",
 )
 
+<<<<<<< HEAD
 GEMINI_FALLBACK_MODEL = os.environ.get(
     "GEMINI_FALLBACK_MODEL",
     "gemini-3.5-flash",
 )
+=======
+>>>>>>> 7f382e2 (Initial commit)
 
 # ============================================================
 # MODELO DA RESPOSTA DO GEMINI
@@ -460,6 +473,7 @@ def analyze_with_gemini(prompt):
         api_key=GEMINI_API_KEY
     )
 
+<<<<<<< HEAD
     modelos = [
         GEMINI_MODEL,
         GEMINI_FALLBACK_MODEL,
@@ -550,6 +564,39 @@ def analyze_with_gemini(prompt):
         "Os modelos Gemini estão temporariamente "
         "indisponíveis. Tente executar o workflow novamente."
     ) from ultimo_erro
+=======
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=PRAnalysis,
+        ),
+    )
+
+    if not response.text:
+        raise RuntimeError(
+            "O Gemini retornou uma resposta vazia."
+        )
+
+    try:
+        return PRAnalysis.model_validate_json(
+            response.text
+        )
+
+    except Exception as error:
+        print(
+            "Resposta recebida do Gemini:"
+        )
+
+        print(
+            response.text
+        )
+
+        raise RuntimeError(
+            "O Gemini retornou JSON em formato inesperado."
+        ) from error
+>>>>>>> 7f382e2 (Initial commit)
 
 
 # ============================================================
@@ -814,4 +861,8 @@ def main():
 
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     main()
+=======
+    main()
+>>>>>>> 7f382e2 (Initial commit)
