@@ -36,7 +36,7 @@ public class SegurancaConfig {
 
   private static void escreverErro(HttpServletResponse resposta) throws IOException {
     resposta.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-    resposta.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    resposta.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
     resposta.getWriter().write("{\"detail\":\"X-Api-Key inválida.\"}");
   }
 }

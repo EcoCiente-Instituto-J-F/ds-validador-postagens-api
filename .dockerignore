@@ -1,0 +1,16 @@
+.git
+.gradle
+build
+bin
+modelos
+amostras
+.venv
+.env
+.env.*
+.pytest_cache
+.superpowers
+docs
+scripts
+src/test
+*.log
+cabeca.json

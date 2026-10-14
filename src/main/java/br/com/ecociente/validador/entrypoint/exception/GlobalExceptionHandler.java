@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -94,12 +95,23 @@ public class GlobalExceptionHandler {
       return resposta(HttpStatus.UNPROCESSABLE_ENTITY, mensagemDoProcedure(causa));
     }
     if (estaIndisponivel(erro, estado)) {
-      return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-          .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER)
-          .body(new ErroResposta("Banco de dados indisponível; tente de novo."));
+      return bancoIndisponivel();
     }
     log.error("Erro de banco não tratado (SQLSTATE {})", estado, erro);
     return resposta(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno.");
+  }
+
+  /** Conexão recusada ao abrir a transação (@Transactional) não é DataAccessException: tratada à parte. */
+  @ExceptionHandler(CannotCreateTransactionException.class)
+  public ResponseEntity<ErroResposta> transacaoIndisponivel(CannotCreateTransactionException erro) {
+    log.warn("Não foi possível abrir transação no banco: {}", erro.getMessage());
+    return bancoIndisponivel();
+  }
+
+  private static ResponseEntity<ErroResposta> bancoIndisponivel() {
+    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        .header(HttpHeaders.RETRY_AFTER, RETRY_AFTER)
+        .body(new ErroResposta("Banco de dados indisponível; tente de novo."));
   }
 
   private static boolean estaIndisponivel(DataAccessException erro, String estado) {
