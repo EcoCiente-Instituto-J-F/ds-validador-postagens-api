@@ -6,7 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import br.com.ecociente.validador.dataprovaider.llm.ClienteChatOpenAi;
+import br.com.ecociente.validador.dataprovider.llm.ClienteChatOpenAi;
 
 /**
  * Explica ao morador o resultado da triagem das fotos dele, usando só o contexto de triagens recentes.

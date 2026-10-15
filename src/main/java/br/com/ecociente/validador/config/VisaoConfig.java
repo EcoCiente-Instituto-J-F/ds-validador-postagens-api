@@ -9,10 +9,10 @@ import org.springframework.context.annotation.Configuration;
 
 import ai.onnxruntime.OrtException;
 import br.com.ecociente.validador.core.gateway.ClassificadorGateway;
-import br.com.ecociente.validador.dataprovaider.visao.CabecaTreinada;
-import br.com.ecociente.validador.dataprovaider.visao.ClassificadorCabecaGateway;
-import br.com.ecociente.validador.dataprovaider.visao.ClassificadorClipGateway;
-import br.com.ecociente.validador.dataprovaider.visao.ModeloClip;
+import br.com.ecociente.validador.dataprovider.visao.CabecaTreinada;
+import br.com.ecociente.validador.dataprovider.visao.ClassificadorCabecaGateway;
+import br.com.ecociente.validador.dataprovider.visao.ClassificadorClipGateway;
+import br.com.ecociente.validador.dataprovider.visao.ModeloClip;
 
 /** Carrega o CLIP uma vez na subida (como o serviço antigo): o pod só abre a porta com o modelo pronto. */
 @Configuration

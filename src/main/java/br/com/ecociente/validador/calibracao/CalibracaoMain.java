@@ -11,9 +11,9 @@ import br.com.ecociente.validador.core.domain.Categorias;
 import br.com.ecociente.validador.core.domain.Classe;
 import br.com.ecociente.validador.core.domain.ClasseProbabilidade;
 import br.com.ecociente.validador.core.exception.FotoInvalidaException;
-import br.com.ecociente.validador.dataprovaider.foto.DecodificadorFoto;
-import br.com.ecociente.validador.dataprovaider.visao.ClassificadorClipGateway;
-import br.com.ecociente.validador.dataprovaider.visao.ModeloClip;
+import br.com.ecociente.validador.dataprovider.foto.DecodificadorFoto;
+import br.com.ecociente.validador.dataprovider.visao.ClassificadorClipGateway;
+import br.com.ecociente.validador.dataprovider.visao.ModeloClip;
 
 /**
  * Mede o classificador em fotos reais para escolher o limiar_confianca.

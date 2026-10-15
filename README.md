@@ -30,7 +30,7 @@ O projeto ainda está em desenvolvimento e as próximas atualizações serão vo
 
 Antes de começar, verifique se você atendeu aos seguintes requisitos:
 
-- Você instalou o **JDK 21** (o Gradle wrapper do projeto baixa o Gradle 8.14.3 sozinho).
+- JDK 17 a 24 (recomendado: 21) para rodar o Gradle wrapper — o Gradle 8.14 não roda em Java 25+: o 1º build baixa sozinho o Gradle 8.14.3 e o **JDK 21** que compila o projeto (precisa de internet).
 - Você tem o **Docker** para o PostgreSQL de teste, para os testes de integração e para a imagem de produção.
 - Funciona em Windows, Linux e macOS (só CPU, sem GPU).
 - Você tem acesso ao PostgreSQL do app com o schema do EcoCiente (`src/test/resources/sql/ecociente_schema.sql`) e os lookups carregados (`src/test/resources/sql/seed_lookups.sql`).
@@ -97,7 +97,7 @@ O teste `testeBanco` aplica o schema inteiro num container descartável; nunca a
 ```text
 src/main/java/br/com/ecociente/validador/
   core/          domínio puro: domain (records, catálogo) · service (triagem, votos, decisão) · gateway (portas) · imagem (dHash, FFT, reamostragem) · exception
-  dataprovaider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer, cabeça treinada) · llm (segunda opinião)
+  dataprovider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer, cabeça treinada) · llm (segunda opinião)
   entrypoint/    controller · dto · exception (contrato HTTP) · metricas (Prometheus)
   config/        propriedades · segurança (X-Api-Key) · visão (carrega o CLIP) · job (fechamento das janelas)
   agentes/       explicador ao morador e contexto das triagens (fora da API)
@@ -171,7 +171,7 @@ docker build -t ecociente-validador-fotos .
 - Os arquivos do CLIP vão dentro da imagem (baixados e conferidos no build): o pod sobe sem internet. Só CPU.
 - Porta 8000; readiness e liveness em `GET /saude` (dê folga no `initialDelaySeconds`: o modelo carrega antes de abrir a porta).
 - 1 réplica: o job de fechamento roda dentro da API e cada processo carrega o modelo inteiro na RAM. A JVM usa até 75% da memória do contêiner (`JAVA_TOOL_OPTIONS`); ajuste o `limits.memory` pelo consumo medido.
-- `CHAVE_API` e `DB_*` no Secret `validador-fotos`; gere a chave com `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+- `CHAVE_API` e `DB_*` no Secret `validador-fotos`; gere a chave com `openssl rand -base64 32`.
 - Service `ClusterIP`: só os serviços do cluster chamam.
 - O CronJob de fechamento das janelas não é mais necessário: o job roda dentro da API (desligue com `FECHAMENTO_HABILITADO=false` se preferir outro arranjo).
 
