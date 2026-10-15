@@ -20,16 +20,16 @@ import br.com.ecociente.validador.core.domain.ResultadoVoto;
 import br.com.ecociente.validador.core.domain.VinculoTrust;
 import br.com.ecociente.validador.core.exception.NotFoundException;
 import br.com.ecociente.validador.core.exception.PermissaoNegadaException;
-import br.com.ecociente.validador.core.gateway.PostagemValidacaoGateway;
+import br.com.ecociente.validador.dataprovider.gateway.PostagemValidacaoJdbcGateway;
 
 class PostagemValidacaoServiceTest {
 
-  private PostagemValidacaoGateway gateway;
+  private PostagemValidacaoJdbcGateway gateway;
   private PostagemValidacaoService service;
 
   @BeforeEach
   void configurar() {
-    gateway = mock(PostagemValidacaoGateway.class);
+    gateway = mock(PostagemValidacaoJdbcGateway.class);
     service = new PostagemValidacaoService(gateway);
   }
 
