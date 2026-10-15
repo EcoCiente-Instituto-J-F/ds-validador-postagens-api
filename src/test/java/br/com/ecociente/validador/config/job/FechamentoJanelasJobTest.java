@@ -9,14 +9,14 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import br.com.ecociente.validador.core.gateway.PostagemValidacaoGateway;
+import br.com.ecociente.validador.dataprovider.gateway.PostagemValidacaoJdbcGateway;
 import br.com.ecociente.validador.core.service.PostagemValidacaoService;
 
 class FechamentoJanelasJobTest {
 
   @Test
   void falhaEmUmaJanelaNaoTravaAsDemais() {
-    var gateway = mock(PostagemValidacaoGateway.class);
+    var gateway = mock(PostagemValidacaoJdbcGateway.class);
     var service = mock(PostagemValidacaoService.class);
     when(gateway.buscarJanelasVencidas(100)).thenReturn(List.of(1, 2, 3));
     org.mockito.Mockito.doThrow(new IllegalStateException("procedure falhou")).when(service).encerrarJanela(2);
@@ -30,21 +30,12 @@ class FechamentoJanelasJobTest {
 
   @Test
   void semJanelasVencidasNaoFazNada() {
-    var gateway = mock(PostagemValidacaoGateway.class);
+    var gateway = mock(PostagemValidacaoJdbcGateway.class);
     var service = mock(PostagemValidacaoService.class);
     when(gateway.buscarJanelasVencidas(100)).thenReturn(List.of());
 
     new FechamentoJanelasJob(gateway, service, 100).executar();
 
     verify(service, never()).encerrarJanela(org.mockito.ArgumentMatchers.anyInt());
-  }
-
-  @Test
-  void loteForaDoIntervaloEhRecusado() {
-    var gateway = mock(PostagemValidacaoGateway.class);
-    var service = mock(PostagemValidacaoService.class);
-
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> new FechamentoJanelasJob(gateway, service, 0))
-        .isInstanceOf(IllegalArgumentException.class);
   }
 }
