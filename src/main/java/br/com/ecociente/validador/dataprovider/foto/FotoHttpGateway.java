@@ -18,14 +18,12 @@ import org.springframework.stereotype.Component;
 
 import br.com.ecociente.validador.config.PropriedadesValidador;
 import br.com.ecociente.validador.core.domain.FotoCarregada;
-import br.com.ecociente.validador.core.exception.FotoIndisponivelException;
-import br.com.ecociente.validador.core.exception.FotoInvalidaException;
-import br.com.ecociente.validador.core.exception.PedidoFotoInvalidoException;
-import br.com.ecociente.validador.core.gateway.FotoGateway;
+import br.com.ecociente.validador.core.domain.StatusTriagem;
+import br.com.ecociente.validador.core.exception.FotoException;
 
 /** Busca a foto no storage do app: só hosts permitidos (anti-SSRF), sem redirecionar, com limite de tamanho. */
 @Component
-public class FotoHttpGateway implements FotoGateway {
+public class FotoHttpGateway {
 
   private final Set<String> hostsPermitidos;
   private final long tamanhoMaximo;
@@ -45,7 +43,6 @@ public class FotoHttpGateway implements FotoGateway {
         .build();
   }
 
-  @Override
   public FotoCarregada baixar(String url) {
     URI destino = destinoValido(url);
     return DecodificadorFoto.decodificar(baixarBytes(destino));
@@ -56,15 +53,15 @@ public class FotoHttpGateway implements FotoGateway {
     try {
       destino = new URI(url);
     } catch (URISyntaxException | NullPointerException erro) {
-      throw new PedidoFotoInvalidoException("URL da foto malformada.");
+      throw new FotoException(StatusTriagem.PEDIDO_INVALIDO, "URL da foto malformada.");
     }
     String esquema = destino.getScheme() == null ? "" : destino.getScheme().toLowerCase(Locale.ROOT);
     if (!esquema.equals("http") && !esquema.equals("https")) {
-      throw new PedidoFotoInvalidoException("A URL da foto precisa ser http(s).");
+      throw new FotoException(StatusTriagem.PEDIDO_INVALIDO, "A URL da foto precisa ser http(s).");
     }
     String host = destino.getHost() == null ? "" : destino.getHost().toLowerCase(Locale.ROOT);
     if (!hostsPermitidos.contains(host)) { // anti-SSRF: só busca no storage do app
-      throw new PedidoFotoInvalidoException("Host não permitido: " + (host.isEmpty() ? "(vazio)" : host) + ".");
+      throw new FotoException(StatusTriagem.PEDIDO_INVALIDO, "Host não permitido: " + (host.isEmpty() ? "(vazio)" : host) + ".");
     }
     return destino;
   }
@@ -76,18 +73,18 @@ public class FotoHttpGateway implements FotoGateway {
           HttpRequest.newBuilder(destino).timeout(timeout).GET().build(),
           HttpResponse.BodyHandlers.ofInputStream());
     } catch (IOException erro) {
-      throw new FotoIndisponivelException("Não foi possível baixar a foto do storage.");
+      throw new FotoException(StatusTriagem.FOTO_INDISPONIVEL, "Não foi possível baixar a foto do storage.");
     } catch (InterruptedException erro) {
       Thread.currentThread().interrupt();
-      throw new FotoIndisponivelException("Não foi possível baixar a foto do storage.");
+      throw new FotoException(StatusTriagem.FOTO_INDISPONIVEL, "Não foi possível baixar a foto do storage.");
     }
     try (InputStream corpo = resposta.body()) {
       if (resposta.statusCode() != 200) {
-        throw new FotoIndisponivelException("O storage respondeu HTTP " + resposta.statusCode() + ".");
+        throw new FotoException(StatusTriagem.FOTO_INDISPONIVEL, "O storage respondeu HTTP " + resposta.statusCode() + ".");
       }
       return lerLimitado(corpo);
     } catch (IOException erro) {
-      throw new FotoIndisponivelException("Não foi possível baixar a foto do storage.");
+      throw new FotoException(StatusTriagem.FOTO_INDISPONIVEL, "Não foi possível baixar a foto do storage.");
     }
   }
 
@@ -99,7 +96,7 @@ public class FotoHttpGateway implements FotoGateway {
     while ((lidos = corpo.read(bloco)) != -1) {
       total += lidos;
       if (total > tamanhoMaximo) {
-        throw new FotoInvalidaException("A foto passa do limite de " + megabytes(tamanhoMaximo) + " MB.");
+        throw new FotoException(StatusTriagem.OK, "A foto passa do limite de " + megabytes(tamanhoMaximo) + " MB.");
       }
       dados.write(bloco, 0, lidos);
     }

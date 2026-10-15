@@ -11,7 +11,8 @@ import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
 
-import br.com.ecociente.validador.core.exception.FotoInvalidaException;
+import br.com.ecociente.validador.core.domain.StatusTriagem;
+import br.com.ecociente.validador.core.exception.FotoException;
 
 class DecodificadorFotoTest {
 
@@ -27,7 +28,7 @@ class DecodificadorFotoTest {
   @Test
   void bytesQueNaoSaoImagemViramFotoInvalida() {
     assertThatThrownBy(() -> DecodificadorFoto.decodificar("isto não é uma imagem".getBytes()))
-        .isInstanceOf(FotoInvalidaException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.OK)
         .hasMessage("O arquivo não é uma imagem válida.");
   }
 
@@ -35,7 +36,7 @@ class DecodificadorFotoTest {
   void orientacaoSemExifNaoGira() throws IOException {
     BufferedImage imagem = new BufferedImage(20, 10, BufferedImage.TYPE_INT_RGB);
 
-    assertThat(DecodificadorFoto.aplicarOrientacao(png(20, 10), imagem)).isSameAs(imagem);
+    assertThat(DecodificadorFoto.aplicarOrientacao(DecodificadorFoto.orientacaoExif(DecodificadorFoto.metadados(png(20, 10))), imagem)).isSameAs(imagem);
   }
 
   private static byte[] png(int largura, int altura) throws IOException {

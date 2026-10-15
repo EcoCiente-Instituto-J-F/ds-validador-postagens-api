@@ -5,7 +5,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Iterator;
 
 import javax.imageio.ImageIO;
@@ -17,7 +16,8 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.exif.ExifIFD0Directory;
 
 import br.com.ecociente.validador.core.domain.FotoCarregada;
-import br.com.ecociente.validador.core.exception.FotoInvalidaException;
+import br.com.ecociente.validador.core.domain.StatusTriagem;
+import br.com.ecociente.validador.core.exception.FotoException;
 
 /** Abre o arquivo baixado como imagem RGB em pé (com a orientação EXIF aplicada), sem depender do Pillow. */
 public final class DecodificadorFoto {
@@ -29,45 +29,44 @@ public final class DecodificadorFoto {
   }
 
   public static FotoCarregada decodificar(byte[] dados) {
-    boolean semExif = semExif(dados);
-    BufferedImage imagem = aplicarOrientacao(dados, abrir(dados));
-    return new FotoCarregada(paraRgb(imagem), semExif);
+    Metadata metadados = metadados(dados);
+    BufferedImage imagem = aplicarOrientacao(orientacaoExif(metadados), abrir(dados));
+    return new FotoCarregada(paraRgb(imagem), semExif(metadados));
   }
 
   static BufferedImage abrir(byte[] dados) {
     try (ImageInputStream entrada = ImageIO.createImageInputStream(new ByteArrayInputStream(dados))) {
       if (entrada == null) {
-        throw new FotoInvalidaException(MSG_INVALIDA);
+        throw new FotoException(StatusTriagem.OK, MSG_INVALIDA);
       }
       Iterator<ImageReader> leitores = ImageIO.getImageReaders(entrada);
       if (!leitores.hasNext()) {
-        throw new FotoInvalidaException(MSG_INVALIDA);
+        throw new FotoException(StatusTriagem.OK, MSG_INVALIDA);
       }
       ImageReader leitor = leitores.next();
       try {
         leitor.setInput(entrada);
         // lê só o cabeçalho para barrar imagem enorme antes de ocupar a memória
         if ((long) leitor.getWidth(0) * leitor.getHeight(0) > LIMITE_PIXELS) {
-          throw new FotoInvalidaException("A foto tem resolução grande demais.");
+          throw new FotoException(StatusTriagem.OK, "A foto tem resolução grande demais.");
         }
         BufferedImage imagem = leitor.read(0);
         if (imagem == null) {
-          throw new FotoInvalidaException(MSG_INVALIDA);
+          throw new FotoException(StatusTriagem.OK, MSG_INVALIDA);
         }
         return imagem;
       } finally {
         leitor.dispose();
       }
-    } catch (FotoInvalidaException erro) {
+    } catch (FotoException erro) {
       throw erro;
     } catch (IOException | RuntimeException erro) { // o ImageIO lança tipos variados para arquivo corrompido
-      throw new FotoInvalidaException(MSG_INVALIDA);
+      throw new FotoException(StatusTriagem.OK, MSG_INVALIDA);
     }
   }
 
   /** Celular salva retrato "deitado" + tag EXIF: gira a imagem como o Pillow faz no exif_transpose. */
-  static BufferedImage aplicarOrientacao(byte[] dados, BufferedImage imagem) {
-    int orientacao = orientacaoExif(dados);
+  static BufferedImage aplicarOrientacao(int orientacao, BufferedImage imagem) {
     if (orientacao == 1) {
       return imagem;
     }
@@ -109,25 +108,27 @@ public final class DecodificadorFoto {
     return rgb;
   }
 
-  static int orientacaoExif(byte[] dados) {
-    try (InputStream entrada = new ByteArrayInputStream(dados)) {
-      ExifIFD0Directory exif = ImageMetadataReader.readMetadata(entrada).getFirstDirectoryOfType(ExifIFD0Directory.class);
-      if (exif != null && exif.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
-        return exif.getInt(ExifIFD0Directory.TAG_ORIENTATION);
-      }
-    } catch (Exception erro) { // metadados ilegíveis não impedem a triagem: a foto segue sem rotação
+  /** Metadados do arquivo, ou nulo se ilegíveis: não impedem a triagem (a foto segue sem rotação). */
+  static Metadata metadados(byte[] dados) {
+    try {
+      return ImageMetadataReader.readMetadata(new ByteArrayInputStream(dados));
+    } catch (Exception erro) {
+      return null;
+    }
+  }
+
+  static int orientacaoExif(Metadata metadados) {
+    ExifIFD0Directory exif = metadados == null ? null : metadados.getFirstDirectoryOfType(ExifIFD0Directory.class);
+    if (exif == null || !exif.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
       return 1;
     }
-    return 1;
+    Integer orientacao = exif.getInteger(ExifIFD0Directory.TAG_ORIENTATION);
+    return orientacao == null ? 1 : orientacao;
   }
 
   /** Sem nenhum EXIF: indício fraco (print, download e foto reenviada por apps costumam não trazer). */
-  static boolean semExif(byte[] dados) {
-    try (InputStream entrada = new ByteArrayInputStream(dados)) {
-      Metadata metadados = ImageMetadataReader.readMetadata(entrada);
-      return metadados.getDirectoriesOfType(ExifIFD0Directory.class).stream().noneMatch(d -> d.getTagCount() > 0);
-    } catch (Exception erro) { // arquivo inválido já é tratado na abertura
-      return false;
-    }
+  static boolean semExif(Metadata metadados) {
+    return metadados != null
+        && metadados.getDirectoriesOfType(ExifIFD0Directory.class).stream().noneMatch(d -> d.getTagCount() > 0);
   }
 }

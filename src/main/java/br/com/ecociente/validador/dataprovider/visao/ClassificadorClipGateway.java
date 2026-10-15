@@ -9,13 +9,12 @@ import java.util.Map;
 import br.com.ecociente.validador.core.domain.Categorias;
 import br.com.ecociente.validador.core.domain.Classe;
 import br.com.ecociente.validador.core.domain.ClasseProbabilidade;
-import br.com.ecociente.validador.core.gateway.ClassificadorGateway;
 
 /**
  * Zero-shot com CLIP: compara a foto com as descrições de cada classe, sem dataset nem treino.
  * Cada prompt recebe uma probabilidade (softmax sobre todos); a probabilidade da classe é a soma dos seus prompts.
  */
-public final class ClassificadorClipGateway implements ClassificadorGateway {
+public final class ClassificadorClipGateway {
 
   /** logit_scale treinado do CLIP (exp(4.6052) ≈ 100). */
   static final double ESCALA_LOGITS = 100.0;
@@ -34,7 +33,6 @@ public final class ClassificadorClipGateway implements ClassificadorGateway {
     }
   }
 
-  @Override
   public synchronized List<ClasseProbabilidade> ranking(BufferedImage imagem) {
     float[] imagemNormalizada = normalizar(modelo.embeddingImagem(imagem));
     double[] logits = new double[textos.size()];

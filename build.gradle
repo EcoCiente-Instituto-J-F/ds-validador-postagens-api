@@ -98,11 +98,3 @@ tasks.register('calibrar', JavaExec) {
 	mainClass = 'br.com.ecociente.validador.calibracao.CalibracaoMain'
 	args = [project.findProperty('pastaAmostras') ?: 'amostras']
 }
-
-tasks.register('treinarCabeca', JavaExec) {
-	description = 'Treina a cabeça sobre os embeddings do CLIP e compara com o zero-shot.'
-	group = 'application'
-	classpath = sourceSets.main.runtimeClasspath
-	mainClass = 'br.com.ecociente.validador.calibracao.TreinamentoCabecaMain'
-	args = [project.findProperty('pastaAmostras') ?: 'amostras', project.findProperty('saidaCabeca') ?: 'cabeca.json']
-}

@@ -18,9 +18,8 @@ import org.junit.jupiter.api.Test;
 import com.sun.net.httpserver.HttpServer;
 
 import br.com.ecociente.validador.config.PropriedadesValidador;
-import br.com.ecociente.validador.core.exception.FotoIndisponivelException;
-import br.com.ecociente.validador.core.exception.FotoInvalidaException;
-import br.com.ecociente.validador.core.exception.PedidoFotoInvalidoException;
+import br.com.ecociente.validador.core.domain.StatusTriagem;
+import br.com.ecociente.validador.core.exception.FotoException;
 import br.com.ecociente.validador.fixtures.Propriedades;
 
 class FotoHttpGatewayTest {
@@ -62,7 +61,7 @@ class FotoHttpGatewayTest {
     var gateway = new FotoHttpGateway(Propriedades.padrao(List.of("storage.exemplo.com")));
 
     assertThatThrownBy(() -> gateway.baixar(url("/ok.png")))
-        .isInstanceOf(PedidoFotoInvalidoException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.PEDIDO_INVALIDO)
         .hasMessageStartingWith("Host não permitido: 127.0.0.1");
   }
 
@@ -71,7 +70,7 @@ class FotoHttpGatewayTest {
     var gateway = new FotoHttpGateway(propriedades(1_000_000));
 
     assertThatThrownBy(() -> gateway.baixar("ftp://127.0.0.1/ok.png"))
-        .isInstanceOf(PedidoFotoInvalidoException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.PEDIDO_INVALIDO)
         .hasMessage("A URL da foto precisa ser http(s).");
   }
 
@@ -80,7 +79,7 @@ class FotoHttpGatewayTest {
     var gateway = new FotoHttpGateway(propriedades(1_000_000));
 
     assertThatThrownBy(() -> gateway.baixar("http://exemplo com espaço/x.png"))
-        .isInstanceOf(PedidoFotoInvalidoException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.PEDIDO_INVALIDO)
         .hasMessage("URL da foto malformada.");
   }
 
@@ -89,7 +88,7 @@ class FotoHttpGatewayTest {
     var gateway = new FotoHttpGateway(propriedades(1_000_000));
 
     assertThatThrownBy(() -> gateway.baixar(url("/falta.png")))
-        .isInstanceOf(FotoIndisponivelException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.FOTO_INDISPONIVEL)
         .hasMessage("O storage respondeu HTTP 404.");
   }
 
@@ -98,7 +97,7 @@ class FotoHttpGatewayTest {
     var gateway = new FotoHttpGateway(propriedades(1_000));
 
     assertThatThrownBy(() -> gateway.baixar(url("/grande.png")))
-        .isInstanceOf(FotoInvalidaException.class)
+        .isInstanceOf(FotoException.class).hasFieldOrPropertyWithValue("status", StatusTriagem.OK)
         .hasMessage("A foto passa do limite de 0.001 MB.");
   }
 
@@ -111,7 +110,7 @@ class FotoHttpGatewayTest {
   private PropriedadesValidador propriedades(long tamanhoMaximo) {
     PropriedadesValidador base = Propriedades.padrao(List.of("127.0.0.1"));
     return new PropriedadesValidador(base.chaveApi(), null, base.hostsPermitidos(), 0.5, null, "", 8,
-        tamanhoMaximo, 5, base.clipDir(), null, base.segundaOpiniao());
+        tamanhoMaximo, 5, base.clipDir());
   }
 
   private String url(String caminho) {

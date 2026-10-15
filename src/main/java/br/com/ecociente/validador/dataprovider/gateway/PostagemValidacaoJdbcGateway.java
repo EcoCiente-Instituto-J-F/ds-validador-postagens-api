@@ -9,11 +9,10 @@ import org.springframework.stereotype.Component;
 import br.com.ecociente.validador.core.domain.DadosTriagem;
 import br.com.ecociente.validador.core.domain.ResultadoVoto;
 import br.com.ecociente.validador.core.domain.VinculoTrust;
-import br.com.ecociente.validador.core.gateway.PostagemValidacaoGateway;
 
 /** SQL direto sobre o schema do app: chama os procedures e lê as tabelas de postagens. */
 @Component
-public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
+public class PostagemValidacaoJdbcGateway {
 
   private final JdbcTemplate jdbc;
 
@@ -21,7 +20,6 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
     this.jdbc = jdbc;
   }
 
-  @Override
   public Optional<DadosTriagem> buscarDadosTriagem(int postagemId) {
     return jdbc.query(
             "SELECT p.url_foto, c.nome_categoria FROM tb_postagens p"
@@ -33,7 +31,6 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         .findFirst();
   }
 
-  @Override
   public void gravarTriagem(int postagemId, Boolean aprovada, Double confianca) {
     jdbc.update(
         "UPDATE tb_postagens SET triagem_automatica_aprovada = ?, triagem_automatica_confianca = ?"
@@ -41,7 +38,6 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         aprovada, confianca, postagemId);
   }
 
-  @Override
   public Optional<Integer> buscarUsuarioAutor(int postagemId) {
     return jdbc.query(
             "SELECT usuario_id FROM tb_postagens WHERE id_postagem = ?",
@@ -51,14 +47,12 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         .findFirst();
   }
 
-  @Override
   public boolean existePostagem(int postagemId) {
     Integer encontrados = jdbc.queryForObject(
         "SELECT COUNT(*) FROM tb_postagens WHERE id_postagem = ?", Integer.class, postagemId);
     return encontrados != null && encontrados > 0;
   }
 
-  @Override
   public Integer buscarUsuarioSindico(int postagemId) {
     // LEFT JOIN: condomínio sem síndico devolve nulo, e o serviço recusa a decisão
     return jdbc.query(
@@ -73,7 +67,6 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         .orElse(null);
   }
 
-  @Override
   public ResultadoVoto registrarVoto(
       int postagemId, int usuarioId, String tipo, Integer motivoDenunciaId, String comentario) {
     jdbc.update(
@@ -85,12 +78,10 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         postagemId);
   }
 
-  @Override
   public void registrarDecisao(int postagemId, boolean aprovar) {
     jdbc.update("CALL sp_decidir_postagem_analise(?, ?)", postagemId, aprovar);
   }
 
-  @Override
   public List<VinculoTrust> buscarEnvolvidosTrust(int postagemId) {
     // JOIN no vínculo: quem saiu do condomínio (ou nunca entrou) não tem trust score a atualizar
     // ORDER BY: ordem fixa dos locks, evita deadlock entre /decisao e o job
@@ -105,12 +96,10 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         postagemId);
   }
 
-  @Override
   public void atualizarTrustScore(int usuarioId, int condominioId) {
     jdbc.update("CALL sp_atualizar_trust_score(?, ?)", usuarioId, condominioId);
   }
 
-  @Override
   public List<Integer> buscarJanelasVencidas(int limite) {
     return jdbc.queryForList(
         "SELECT id_postagem FROM tb_postagens WHERE resolvido_em IS NULL AND data_limite_analise <= now()"
@@ -119,7 +108,6 @@ public class PostagemValidacaoJdbcGateway implements PostagemValidacaoGateway {
         limite);
   }
 
-  @Override
   public void encerrarJanela(int postagemId) {
     jdbc.update("CALL sp_encerrar_janela_postagem(?)", postagemId);
   }

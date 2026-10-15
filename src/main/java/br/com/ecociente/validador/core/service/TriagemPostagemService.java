@@ -13,6 +13,7 @@ import br.com.ecociente.validador.core.domain.VeredictoFoto;
 import br.com.ecociente.validador.core.exception.CategoriaInvalidaException;
 import br.com.ecociente.validador.core.exception.NotFoundException;
 import br.com.ecociente.validador.core.exception.ServicoOcupadoException;
+import br.com.ecociente.validador.dataprovider.gateway.PostagemValidacaoJdbcGateway;
 
 /**
  * Fluxo completo do POST /triagem: lê a postagem, valida a categoria, controla a vazão e grava o veredito.
@@ -21,12 +22,12 @@ import br.com.ecociente.validador.core.exception.ServicoOcupadoException;
 @Service
 public class TriagemPostagemService {
 
-  private final PostagemValidacaoService postagens;
+  private final PostagemValidacaoJdbcGateway postagens;
   private final TriagemFotoService triagemFoto;
   private final Semaphore vagas;
 
   public TriagemPostagemService(
-      PostagemValidacaoService postagens,
+      PostagemValidacaoJdbcGateway postagens,
       TriagemFotoService triagemFoto,
       @Value("${app.validador.max-pedidos-simultaneos}") int maxPedidosSimultaneos) {
     this.postagens = postagens;
@@ -51,7 +52,7 @@ public class TriagemPostagemService {
     }
 
     if (veredito.status() == StatusTriagem.OK) {
-      postagens.gravarTriagem(postagemId, veredito);
+      postagens.gravarTriagem(postagemId, veredito.pertinente(), veredito.confianca());
     }
     return veredito;
   }

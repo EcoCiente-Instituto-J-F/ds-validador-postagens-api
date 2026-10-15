@@ -96,12 +96,11 @@ O teste `testeBanco` aplica o schema inteiro num container descartável; nunca a
 
 ```text
 src/main/java/br/com/ecociente/validador/
-  core/          domínio puro: domain (records, catálogo) · service (triagem, votos, decisão) · gateway (portas) · imagem (dHash, FFT, reamostragem) · exception
-  dataprovider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer, cabeça treinada) · llm (segunda opinião)
+  core/          domínio puro: domain (records, catálogo) · service (triagem, votos, decisão) · imagem (dHash, reamostragem) · exception
+  dataprovider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer)
   entrypoint/    controller · dto · exception (contrato HTTP) · metricas (Prometheus)
   config/        propriedades · segurança (X-Api-Key) · visão (carrega o CLIP) · job (fechamento das janelas)
-  agentes/       explicador ao morador e contexto das triagens (fora da API)
-  calibracao/    calibração do limiar e treino da cabeça (ferramentas de linha de comando)
+  calibracao/    calibração do limiar (ferramenta de linha de comando)
 src/test/        espelha as pastas acima; "modelo" e "banco" ficam fora do ./gradlew test
 ```
 
@@ -118,7 +117,7 @@ Todas as rotas de serviço exigem o header `X-Api-Key`, levam o id da postagem n
 ```
 
 - `pertinente` é tri-estado: `null` = sem veredito automático (só com `LIMIAR_REVISAO` ligado); a API grava `NULL`.
-- `sinais` (`padrao_de_tela`, `sem_exif`) são informativos e não mudam o veredito; ainda não foram calibrados com fotos reais.
+- `sinais` (`sem_exif`) é informativo e não muda o veredito.
 - `hash_foto` é um hash perceptual (dHash); a duplicata exata é barrada pelo `UNIQUE` de `tb_postagens.hash_foto` (SHA-256 do backend).
 - Categorias aceitas: papel, plastico, vidro, metal, organico (acento, maiúsculas e espaços são ignorados).
 
@@ -152,12 +151,10 @@ Todos os erros têm o corpo `{"detail": "..."}`.
 | `LIMIAR_REVISAO` | desligado | se definido (ex.: `0.3`), probabilidade entre ele e o limiar vira `pertinente: null` |
 | `LIMIARES_POR_CATEGORIA` | vazio | limiar por categoria, em JSON: `{"vidro": 0.6}` |
 | `MAX_PEDIDOS_SIMULTANEOS` | `8` | triagens em andamento; acima disso, 503 |
-| `CABECA_TREINADA` | desligada | arquivo JSON gerado por `./gradlew treinarCabeca`; troca o zero-shot pela cabeça treinada |
 | `CHAVE_API_ANTERIOR` | desligada | chave antiga aceita durante a rotação; remova depois |
 | `TAMANHO_MAXIMO_BYTES` | `10000000` | tamanho máximo da foto |
 | `TIMEOUT_DOWNLOAD_SEGUNDOS` | `10` | timeout do download no storage |
 | `FECHAMENTO_HABILITADO` | `true` | liga o job que encerra as janelas de 24h |
-| `SEGUNDA_OPINIAO_ATIVA` | `false` | liga a segunda opinião de um modelo de visão e linguagem (OpenAI-compatível) |
 | `SERVER_PORT` | `8000` | porta HTTP |
 
 > Migração: o serviço Python usava `URL_BANCO` (formato `postgresql://`) e `MODELO_CLIP` (id do Hugging Face). Na versão Java, use `DB_URL`/`DB_USER`/`DB_PASSWORD` e `CLIP_DIR`, e atualize o Secret do k8s.
@@ -181,20 +178,15 @@ docker build -t ecociente-validador-fotos .
 - Cada veredito sai no log como uma linha JSON com `id_postagem` e sem a URL; junto com a correção do moderador, vira o dataset de calibração.
 - Rotação de chave: suba `CHAVE_API` nova e `CHAVE_API_ANTERIOR` antiga, troque nos chamadores, depois remova a anterior.
 
-### Calibração e cabeça treinada
+### Calibração
 
 Fotos reais em `amostras/<categoria>/` (papel, plastico, vidro, metal, organico) e `amostras/nao_residuo/`, ~20 por pasta, tiradas com celular:
 
 ```bash
 ./gradlew calibrar -PpastaAmostras=amostras                        # tabela geral e por categoria
-./gradlew treinarCabeca -PpastaAmostras=amostras -PsaidaCabeca=cabeca.json   # cabeça treinada vs zero-shot
 ```
 
-Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%. Só ligue `CABECA_TREINADA` se a cabeça vencer o zero-shot com folga; o arquivo guarda o CLIP com que foi treinada e o serviço recusa subir com outro modelo.
-
-### Usar a triagem como ferramenta de um agente
-
-A triagem é um serviço Java; para um agente (LLM) use o `ExplicadorMorador` e o `ContextoTriagens` do pacote `agentes`, que recebem um `ClienteChatOpenAi` (compatível com `/chat/completions`). A API não depende de LLM: a segunda opinião e o explicador são opcionais.
+Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%.
 
 ## 📫 Contribuindo para o Validador de Postagens
 

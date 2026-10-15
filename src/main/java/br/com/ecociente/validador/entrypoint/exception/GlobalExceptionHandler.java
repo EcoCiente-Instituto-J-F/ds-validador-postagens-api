@@ -22,7 +22,7 @@ import org.postgresql.util.PSQLException;
 
 import br.com.ecociente.validador.core.domain.StatusTriagem;
 import br.com.ecociente.validador.core.exception.CategoriaInvalidaException;
-import br.com.ecociente.validador.core.exception.FotoRecusadaException;
+import br.com.ecociente.validador.core.exception.FotoException;
 import br.com.ecociente.validador.core.exception.NotFoundException;
 import br.com.ecociente.validador.core.exception.PermissaoNegadaException;
 import br.com.ecociente.validador.core.exception.ServicoOcupadoException;
@@ -54,8 +54,8 @@ public class GlobalExceptionHandler {
     return resposta(HttpStatus.UNPROCESSABLE_ENTITY, erro.getMessage());
   }
 
-  @ExceptionHandler(FotoRecusadaException.class)
-  public ResponseEntity<ErroResposta> fotoRecusada(FotoRecusadaException erro) {
+  @ExceptionHandler(FotoException.class)
+  public ResponseEntity<ErroResposta> fotoRecusada(FotoException erro) {
     HttpStatus status = erro.getStatus() == StatusTriagem.FOTO_INDISPONIVEL
         ? HttpStatus.BAD_GATEWAY
         : HttpStatus.UNPROCESSABLE_ENTITY;

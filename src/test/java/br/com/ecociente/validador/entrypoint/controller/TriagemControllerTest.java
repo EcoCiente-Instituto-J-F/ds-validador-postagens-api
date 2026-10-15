@@ -38,33 +38,32 @@ class TriagemControllerTest {
     var metricas = new MetricasTriagem(new SimpleMeterRegistry());
     LocalValidatorFactoryBean validador = new LocalValidatorFactoryBean();
     validador.afterPropertiesSet();
-    mvc = MockMvcBuilders.standaloneSetup(new TriagemController(triagem, metricas))
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+        .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE);
+    mvc = MockMvcBuilders.standaloneSetup(new TriagemController(triagem, metricas, mapper))
         .setControllerAdvice(new GlobalExceptionHandler())
         .setValidator(validador)
-        .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(
-            new com.fasterxml.jackson.databind.ObjectMapper()
-                .setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE)))
+        .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper))
         .build();
   }
 
   @Test
   void fotoOkDevolveContratoEmSnakeCase() throws Exception {
     when(triagem.triar(7)).thenReturn(new VeredictoFoto(StatusTriagem.OK, true, "vidro", "vidro", 87.42,
-        "f0e4c2a1b3d59687", List.of("sem_exif"), false, List.of(new Alternativa("metal", 9.1)), "Foto compatível com vidro."));
+        "f0e4c2a1b3d59687", List.of("sem_exif"), List.of(new Alternativa("metal", 9.1)), "Foto compatível com vidro."));
 
     mvc.perform(post("/v1/postagens/7/triagem"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("ok"))
         .andExpect(jsonPath("$.categoria_informada").value("vidro"))
         .andExpect(jsonPath("$.hash_foto").value("f0e4c2a1b3d59687"))
-        .andExpect(jsonPath("$.alternativas[0].categoria").value("metal"))
-        .andExpect(jsonPath("$.segunda_opiniao").value(false));
+        .andExpect(jsonPath("$.alternativas[0].categoria").value("metal"));
   }
 
   @Test
   void pedidoInvalidoVira422ComMensagem() throws Exception {
     when(triagem.triar(anyInt())).thenReturn(new VeredictoFoto(StatusTriagem.PEDIDO_INVALIDO, null, "vidro", null, null,
-        null, List.of(), false, List.of(), "Host não permitido: x."));
+        null, List.of(), List.of(), "Host não permitido: x."));
 
     mvc.perform(post("/v1/postagens/7/triagem"))
         .andExpect(status().isUnprocessableEntity())
@@ -74,7 +73,7 @@ class TriagemControllerTest {
   @Test
   void storageForaVira502() throws Exception {
     when(triagem.triar(anyInt())).thenReturn(new VeredictoFoto(StatusTriagem.FOTO_INDISPONIVEL, null, "vidro", null,
-        null, null, List.of(), false, List.of(), "O storage respondeu HTTP 404."));
+        null, null, List.of(), List.of(), "O storage respondeu HTTP 404."));
 
     mvc.perform(post("/v1/postagens/7/triagem")).andExpect(status().isBadGateway());
   }

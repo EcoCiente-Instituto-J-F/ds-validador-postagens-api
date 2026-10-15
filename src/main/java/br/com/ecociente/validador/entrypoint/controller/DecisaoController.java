@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.ecociente.validador.core.service.PostagemValidacaoService;
 import br.com.ecociente.validador.entrypoint.dto.request.DecisaoRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 @RestController
@@ -19,7 +18,6 @@ import jakarta.validation.constraints.Min;
 @Validated
 public class DecisaoController {
 
-  private static final int MAX_ID_INT4 = 2_147_483_647;
 
   private final PostagemValidacaoService service;
 
@@ -29,7 +27,7 @@ public class DecisaoController {
 
   @PostMapping("/{postagemId}/decisao")
   public ResponseEntity<Void> decidir(
-      @PathVariable @Min(1) @Max(MAX_ID_INT4) int postagemId,
+      @PathVariable @Min(1) int postagemId,
       @Valid @RequestBody DecisaoRequest decisao) {
     service.decidir(postagemId, decisao.usuarioId(), decisao.aprovar());
     return ResponseEntity.noContent().build();
