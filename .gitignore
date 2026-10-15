@@ -7,7 +7,6 @@ out/
 # Modelos e fotos de calibração (grandes ou sensíveis: nunca versionar)
 modelos/
 amostras/
-cabeca.json
 
 # IDE
 .idea/

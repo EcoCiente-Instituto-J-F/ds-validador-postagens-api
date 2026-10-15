@@ -10,10 +10,10 @@ import java.util.List;
 import br.com.ecociente.validador.core.domain.Categorias;
 import br.com.ecociente.validador.core.domain.ClasseProbabilidade;
 import br.com.ecociente.validador.core.exception.FotoInvalidaException;
-import br.com.ecociente.validador.dataprovaider.foto.DecodificadorFoto;
-import br.com.ecociente.validador.dataprovaider.visao.CabecaTreinada;
-import br.com.ecociente.validador.dataprovaider.visao.ClassificadorClipGateway;
-import br.com.ecociente.validador.dataprovaider.visao.ModeloClip;
+import br.com.ecociente.validador.dataprovider.foto.DecodificadorFoto;
+import br.com.ecociente.validador.dataprovider.visao.CabecaTreinada;
+import br.com.ecociente.validador.dataprovider.visao.ClassificadorClipGateway;
+import br.com.ecociente.validador.dataprovider.visao.ModeloClip;
 
 /**
  * Treina a cabeça sobre os embeddings do CLIP e diz se ela vence o zero-shot, na mesma fatia de teste.

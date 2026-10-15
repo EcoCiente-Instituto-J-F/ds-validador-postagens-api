@@ -59,7 +59,6 @@ public final class RegraPertinencia {
         arredondar(probabilidade * 100),
         null,
         List.of(),
-        false,
         alternativas,
         mensagem);
   }

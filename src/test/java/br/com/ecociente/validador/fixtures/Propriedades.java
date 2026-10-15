@@ -4,7 +4,7 @@ import java.util.List;
 
 import br.com.ecociente.validador.config.PropriedadesValidador;
 
-/** Propriedades de teste: sem segunda opinião, sem caminhos de modelo reais. */
+/** Propriedades de teste: sem caminhos de modelo reais. */
 public final class Propriedades {
 
   private Propriedades() {
@@ -21,8 +21,6 @@ public final class Propriedades {
         8,
         10_000_000L,
         5,
-        "modelos/clip-vit-base-patch32",
-        null,
-        new PropriedadesValidador.SegundaOpiniao(false, "https://exemplo.invalido/v1", "x", "m", 15));
+        "modelos/clip-vit-base-patch32");
   }
 }

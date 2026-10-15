@@ -1,19 +1,18 @@
 package br.com.ecociente.validador.core.domain;
 
+import java.util.Locale;
+
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /** ok = veredito válido; pedido_invalido = URL recusada; foto_indisponivel = o storage não entregou a foto. */
 public enum StatusTriagem {
 
-  OK("ok"),
-  PEDIDO_INVALIDO("pedido_invalido"),
-  FOTO_INDISPONIVEL("foto_indisponivel");
+  OK,
+  PEDIDO_INVALIDO,
+  FOTO_INDISPONIVEL;
 
-  private final String valor;
-
-  StatusTriagem(String valor) {
-    this.valor = valor;
-  }
-
+  @JsonValue
   public String getValor() {
-    return valor;
+    return name().toLowerCase(Locale.ROOT);
   }
 }

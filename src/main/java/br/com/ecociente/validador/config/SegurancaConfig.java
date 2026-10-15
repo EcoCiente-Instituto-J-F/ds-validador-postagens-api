@@ -25,7 +25,7 @@ public class SegurancaConfig {
         .csrf(csrf -> csrf.disable())
         .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/saude", "/metrics", "/docs/**", "/v3/api-docs/**", "/actuator/health/**", "/error")
+            .requestMatchers("/saude", "/saude/**", "/metrics", "/docs/**", "/v3/api-docs/**", "/error")
             .permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(new FiltroChaveApi(propriedades), UsernamePasswordAuthenticationFilter.class)

@@ -31,7 +31,7 @@ class FiltroChaveApiTest {
   void chaveAnteriorAindaAutenticaDuranteARotacao() throws Exception {
     var base = Propriedades.padrao(List.of("localhost"));
     var propriedades = new PropriedadesValidador(base.chaveApi(), "chave-antiga-com-16-chars", base.hostsPermitidos(),
-        0.5, null, "", 8, 10L, 5, base.clipDir(), null, base.segundaOpiniao());
+        0.5, null, "", 8, 10L, 5, base.clipDir());
     var requisicao = new MockHttpServletRequest("POST", "/v1/postagens/1/triagem");
     requisicao.addHeader("X-Api-Key", "chave-antiga-com-16-chars");
 

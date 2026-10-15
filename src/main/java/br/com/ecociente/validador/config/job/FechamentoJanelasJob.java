@@ -7,8 +7,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import br.com.ecociente.validador.core.gateway.PostagemValidacaoGateway;
 import br.com.ecociente.validador.core.service.PostagemValidacaoService;
+import br.com.ecociente.validador.dataprovider.gateway.PostagemValidacaoJdbcGateway;
 
 /**
  * Encerra as janelas de validação de 24h vencidas. Substitui o CronJob do serviço antigo: roda dentro da API,
@@ -20,18 +20,14 @@ public class FechamentoJanelasJob {
 
   private static final Logger log = LoggerFactory.getLogger(FechamentoJanelasJob.class);
 
-  private final PostagemValidacaoGateway gateway;
+  private final PostagemValidacaoJdbcGateway gateway;
   private final PostagemValidacaoService service;
   private final int batchSize;
 
   public FechamentoJanelasJob(
-      PostagemValidacaoGateway gateway,
+      PostagemValidacaoJdbcGateway gateway,
       PostagemValidacaoService service,
       @Value("${app.validation.batch-size:100}") int batchSize) {
-
-    if (batchSize < 1 || batchSize > 1000) {
-      throw new IllegalArgumentException("O tamanho do lote deve estar entre 1 e 1000");
-    }
     this.gateway = gateway;
     this.service = service;
     this.batchSize = batchSize;

@@ -1,17 +1,14 @@
 package br.com.ecociente.validador.core.service;
 
 import java.util.Objects;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import br.com.ecociente.validador.core.domain.DadosTriagem;
 import br.com.ecociente.validador.core.domain.ResultadoVoto;
-import br.com.ecociente.validador.core.domain.VeredictoFoto;
 import br.com.ecociente.validador.core.exception.NotFoundException;
 import br.com.ecociente.validador.core.exception.PermissaoNegadaException;
-import br.com.ecociente.validador.core.gateway.PostagemValidacaoGateway;
+import br.com.ecociente.validador.dataprovider.gateway.PostagemValidacaoJdbcGateway;
 
 /**
  * Regras de votação, decisão do síndico e fechamento da janela. As regras de voto, histerese, fechamento e
@@ -22,20 +19,10 @@ public class PostagemValidacaoService {
 
   private static final String POSTAGEM_NAO_ENCONTRADA = "Postagem não encontrada.";
 
-  private final PostagemValidacaoGateway gateway;
+  private final PostagemValidacaoJdbcGateway gateway;
 
-  public PostagemValidacaoService(PostagemValidacaoGateway gateway) {
+  public PostagemValidacaoService(PostagemValidacaoJdbcGateway gateway) {
     this.gateway = gateway;
-  }
-
-  @Transactional(readOnly = true)
-  public Optional<DadosTriagem> buscarDadosTriagem(int postagemId) {
-    return gateway.buscarDadosTriagem(postagemId);
-  }
-
-  @Transactional
-  public void gravarTriagem(int postagemId, VeredictoFoto veredito) {
-    gateway.gravarTriagem(postagemId, veredito.pertinente(), veredito.confianca());
   }
 
   @Transactional
