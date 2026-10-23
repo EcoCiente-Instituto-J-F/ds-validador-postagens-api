@@ -1,14 +1,26 @@
 # Validador de Postagens — EcoCiente
 
+![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=java&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6CB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![GitHub last commit](https://img.shields.io/github/last-commit/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
 ![GitHub repo size](https://img.shields.io/github/repo-size/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
-![GitHub language count](https://img.shields.io/github/languages/count/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
-![GitHub open issues](https://img.shields.io/github/issues/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
-![GitHub open pull requests](https://img.shields.io/github/issues-pr/EcoCiente-Instituto-J-F/ds-validador-postagens-api?style=for-the-badge)
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
 > API de validação das postagens de reciclagem do EcoCiente, em Java 21 e Spring Boot. Faz a triagem automática da foto com um modelo de visão (CLIP em ONNX Runtime, só CPU), registra os votos ponderados da comunidade e a decisão do síndico, e fecha a janela de validação de 24h, tudo sobre o PostgreSQL do app. A pontuação e o ranking ficam com a API de Pontuação, que lê `pontuacao_reconciliacao_pendente`.
 
 A postagem precisa de condomínio: usuário comum (sem condomínio) não posta foto. A triagem é um sinal auxiliar; quem decide é a votação comunitária. As regras de voto, histerese (-5 / ≥ 0), fechamento e trust_score vivem nos procedures do banco; a API só os chama.
+
+## Sobre o projeto
+
+Este é o validador de postagens do **EcoCiente**, um sistema de reciclagem comunitária. A API valida fotos de resíduos que os moradores postam, utilizando um modelo de visão por computador (CLIP) para triagem automática e integrando votos da comunidade com decisões do síndico, tudo sobre PostgreSQL.
+
+### Fluxo principal
+
+1. **Triagem automática** (POST `/v1/postagens/{id}/triagem`): baixa a foto, roda o CLIP em ONNX Runtime (só CPU), grava confiança e veredito
+2. **Votos comunitários** (POST `/v1/postagens/{id}/votos`): usuarios votam; rejeições com denúncia requerem motivo
+3. **Decisão do síndico** (POST `/v1/postagens/{id}/decisao`): síndico confirma ou reverte em análise
+4. **Job de fechamento**: encerra janela de 24h, recalcula trust_score
 
 ## Ajustes e melhorias
 
@@ -26,28 +38,32 @@ O projeto ainda está em desenvolvimento e as próximas atualizações serão vo
 - [ ] Suporte a HEIC (fotos de iPhone): o Java não decodifica HEIC hoje
 - [ ] Rebaixar "pessoa confiável" com histórico ruim (`sp_atualizar_trust_score` hoje só promove — ajuste no SQL)
 
-## 💻 Pré-requisitos
+## Pré-requisitos
 
 Antes de começar, verifique se você atendeu aos seguintes requisitos:
 
-- JDK 17 a 24 (recomendado: 21) para rodar o Gradle wrapper — o Gradle 8.14 não roda em Java 25+: o 1º build baixa sozinho o Gradle 8.14.3 e o **JDK 21** que compila o projeto (precisa de internet).
-- Você tem o **Docker** para o PostgreSQL de teste, para os testes de integração e para a imagem de produção.
-- Funciona em Windows, Linux e macOS (só CPU, sem GPU).
-- Você tem acesso ao PostgreSQL do app com o schema do EcoCiente (`src/test/resources/sql/ecociente_schema.sql`) e os lookups carregados (`src/test/resources/sql/seed_lookups.sql`).
-- Você baixou os arquivos do CLIP (ver [Modelo de visão](#modelo-de-visão-clip)).
+- **JDK 21** para rodar o Gradle wrapper (versões 17–24 aceitáveis) — o Gradle 8.14 baixa sozinho na 1ª compilação e requer internet
+- **Docker** para os testes de integração (PostgreSQL via Testcontainers) e para a imagem de produção
+- **CLIP ONNX Runtime**: três arquivos em `CLIP_DIR` (padrão: `modelos/clip-vit-base-patch32`) — ver [Modelo de visão](#modelo-de-visão-clip)
+- **PostgreSQL** do app com schema EcoCiente e lookups carregados (fornecidos em `src/test/resources/sql/`)
+- Funciona em Windows, Linux e macOS (só CPU, sem GPU)
 
-## 🚀 Instalando o Validador de Postagens
+## Instalando
 
-Linux e macOS:
+### Linux / macOS
 
 ```bash
+git clone https://github.com/EcoCiente-Instituto-J-F/ds-validador-postagens-api.git
+cd ds-validador-postagens-api
 cp .env.example .env
 ./gradlew build
 ```
 
-Windows (PowerShell ou Prompt de Comando):
+### Windows (PowerShell ou Prompt de Comando)
 
 ```bat
+git clone https://github.com/EcoCiente-Instituto-J-F/ds-validador-postagens-api.git
+cd ds-validador-postagens-api
 copy .env.example .env
 gradlew.bat build
 ```
@@ -56,11 +72,13 @@ gradlew.bat build
 
 A API precisa de três arquivos do CLIP ViT-B/32 em ONNX, na pasta indicada por `CLIP_DIR` (padrão `modelos/clip-vit-base-patch32`):
 
-| Arquivo | Tamanho aproximado | Origem |
+| Arquivo | Tamanho | Origem |
 |---|---|---|
 | `vision_model.onnx` | 352 MB | [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32/tree/main/onnx) |
 | `text_model.onnx` | 254 MB | idem |
 | `tokenizer.json` | 2,2 MB | [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32/tree/main) |
+
+Baixe-os com:
 
 ```bash
 mkdir -p modelos/clip-vit-base-patch32 && cd modelos/clip-vit-base-patch32
@@ -72,151 +90,144 @@ curl -fL -o tokenizer.json "$B/tokenizer.json"
 
 Confira os tamanhos: um arquivo truncado carrega até o meio e falha só na primeira foto.
 
-## ☕ Usando o Validador de Postagens
+## Usando
 
-Suba a API (a 1ª subida carrega o CLIP, leva alguns segundos):
+### Subir a API
 
 ```bash
 ./gradlew bootRun
 ```
 
-Documentação interativa: <http://localhost:8000/docs>
+A 1ª subida carrega o CLIP na memória (alguns segundos). Documentação interativa: <http://localhost:8000/docs>
 
-Rode os testes:
+### Testes
 
 ```bash
-./gradlew test                  # unitários, sem modelo nem banco (segundos)
-./gradlew testeModelo           # carrega o CLIP de verdade (precisa de CLIP_DIR)
-./gradlew testeBanco            # integração com PostgreSQL via Testcontainers (precisa de Docker)
+./gradlew test                  # unitários, sem modelo nem banco (rápido)
+./gradlew testeModelo           # carrega o CLIP de verdade (requer CLIP_DIR)
+./gradlew testeBanco            # integração com PostgreSQL via Testcontainers (requer Docker)
+./gradlew build                 # todos, excluindo modelo e banco
 ```
 
-O teste `testeBanco` aplica o schema inteiro num container descartável; nunca aponta para o banco do app.
+O teste `testeBanco` aplica o schema inteiro num container PostgreSQL descartável; nunca toca o banco do app.
 
-### Estrutura
+### Calibração do limiar
+
+Com fotos reais em `amostras/<categoria>/` e `amostras/nao_residuo/`:
+
+```bash
+./gradlew calibrar -PpastaAmostras=amostras
+```
+
+Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%.
+
+## Estrutura do projeto
 
 ```text
 src/main/java/br/com/ecociente/validador/
-  core/          domínio puro: domain (records, catálogo) · service (triagem, votos, decisão) · imagem (dHash, reamostragem) · exception
-  dataprovider/ adaptadores: gateway (JDBC, procedures) · foto (download seguro, decodificação) · visao (CLIP ONNX, tokenizer)
-  entrypoint/    controller · dto · exception (contrato HTTP) · metricas (Prometheus)
-  config/        propriedades · segurança (X-Api-Key) · visão (carrega o CLIP) · job (fechamento das janelas)
-  calibracao/    calibração do limiar (ferramenta de linha de comando)
-src/test/        espelha as pastas acima; "modelo" e "banco" ficam fora do ./gradlew test
+  core/          Domínio puro: records, enums, services
+  dataprovider/  Adaptadores: gateway (JDBC), foto (download), visão (CLIP)
+  entrypoint/    Controller, DTO, HTTP exceptions, Prometheus metrics
+  config/        Propriedades, segurança (X-Api-Key), inicialização CLIP, job agendado
+  calibracao/    Ferramenta CLI para calibração de limiares
+
+src/test/        Testes espelhando a estrutura; tags "modelo" e "banco" excluídas por padrão
 ```
 
-### Contrato HTTP
+## Contrato HTTP
 
-Todas as rotas de serviço exigem o header `X-Api-Key`, levam o id da postagem na URL e são chamadas só pelo backend do app. O corpo e as respostas são em snake_case.
+Todas as rotas de serviço exigem o header `X-Api-Key`. Corpos e respostas em snake_case. Chamadas do backend do app apenas.
 
-**`POST /v1/postagens/{id}/triagem`** — sem corpo. Lê `url_foto` e a categoria da postagem, baixa a foto, roda o CLIP e grava `triagem_automatica_aprovada` / `triagem_automatica_confianca`. Chame depois do `INSERT` da postagem, com timeout de ~30 s. A conexão com o banco não fica aberta durante o download e a inferência; a URL nunca vai para o log.
+### POST `/v1/postagens/{id}/triagem`
+
+Sem corpo. Lê `url_foto` e categoria da postagem, baixa a foto, roda o CLIP, grava `triagem_automatica_aprovada` e `triagem_automatica_confianca`.
+
+**Resposta** (200):
 
 ```json
-{"status": "ok", "pertinente": false, "categoria_informada": "plastico", "categoria_detectada": "vidro", "confianca": 87.42,
- "hash_foto": "f0e4c2a1b3d59687", "alternativas": [{"categoria": "plastico", "confianca": 9.1}, {"categoria": "metal", "confianca": 2.0}],
- "mensagem": "A foto parece conter vidro, não plástico."}
+{
+  "status": "ok",
+  "pertinente": false,
+  "categoria_informada": "plastico",
+  "categoria_detectada": "vidro",
+  "confianca": 87.42,
+  "hash_foto": "f0e4c2a1b3d59687",
+  "alternativas": [
+    {"categoria": "plastico", "confianca": 9.1},
+    {"categoria": "metal", "confianca": 2.0}
+  ],
+  "mensagem": "A foto parece conter vidro, não plástico."
+}
 ```
 
-- `pertinente` é tri-estado: `null` = sem veredito automático (só com `LIMIAR_REVISAO` ligado); a API grava `NULL`.
-- `sinais` (`sem_exif`) é informativo e não muda o veredito.
-- `hash_foto` é um hash perceptual (dHash); a duplicata exata é barrada pelo `UNIQUE` de `tb_postagens.hash_foto` (SHA-256 do backend).
-- Categorias aceitas: papel, plastico, vidro, metal, organico (acento, maiúsculas e espaços são ignorados).
+**Status HTTP**:
+- 200: triagem feita (arquivo não-imagem retorna `pertinente: false`)
+- 401: `X-Api-Key` inválida ou ausente
+- 422: host fora de `HOSTS_PERMITIDOS`, categoria inválida, etc.
+- 502: falha no storage
+- 503: fila cheia ou banco indisponível
 
-**`POST /v1/postagens/{id}/votos`** — `{"usuario_id": 7, "tipo": "aprovar", "motivo_denuncia_id": null, "comentario": null}`. `tipo` é `aprovar` ou `denunciar` (denúncia exige `motivo_denuncia_id`). Chama `sp_processar_voto_postagem` e responde `{"saldo_confianca": 3, "pontuacao_ativa": true}`.
+### POST `/v1/postagens/{id}/votos`
 
-**`POST /v1/postagens/{id}/decisao`** — `{"usuario_id": 1, "aprovar": true}`. Só o síndico do condomínio da postagem decide postagens em análise (`sp_decidir_postagem_analise`); depois a API atualiza os trust scores dos envolvidos. Responde 204.
+Corpo: `{"usuario_id": 7, "tipo": "aprovar", "motivo_denuncia_id": null, "comentario": null}`
 
-| Status | Quando | O que o backend faz |
+`tipo` é `aprovar` ou `denunciar` (denúncia requer `motivo_denuncia_id`). Chama `sp_processar_voto_postagem`.
+
+**Resposta** (200): `{"saldo_confianca": 3, "pontuacao_ativa": true}`
+
+### POST `/v1/postagens/{id}/decisao`
+
+Corpo: `{"usuario_id": 1, "aprovar": true}`. Apenas o síndico do condomínio.
+
+**Resposta** (204).
+
+## Variáveis de ambiente
+
+| Variável | Padrão | Descrição |
 |---|---|---|
-| 200 / 204 | triagem e voto / decisão feitos (arquivo que não é imagem é 200 com `pertinente: false`) | mostra `mensagem` (triagem) ou o saldo (voto) |
-| 401 | `X-Api-Key` errada ou ausente | erro de configuração |
-| 403 | autor votando na própria postagem; quem decide não é o síndico | mostra o erro ao usuário |
-| 404 | postagem inexistente | erro de integração |
-| 409 | usuário já votou nesta postagem | ignora; o voto anterior vale |
-| 422 | host fora de `HOSTS_PERMITIDOS`, categoria fora do catálogo, corpo inválido, motivo inexistente ou regra recusada pelo procedure (`detail` traz a mensagem) | nada é gravado; registre no log |
-| 502 | o storage não entregou a foto | tenta de novo mais tarde, poucas vezes |
-| 503 | fila de triagens cheia ou banco indisponível (`Retry-After: 5`) | tenta de novo depois do intervalo |
+| `CHAVE_API` | obrigatória | Valor esperado no header `X-Api-Key` (≥16 caracteres) |
+| `DB_URL` | obrigatória | JDBC PostgreSQL (`jdbc:postgresql://host:5432/banco`) |
+| `DB_USER` / `DB_PASSWORD` | obrigatórias | Credenciais do banco |
+| `HOSTS_PERMITIDOS` | obrigatória | Hosts de storage das fotos (CSV, anti-SSRF) |
+| `CLIP_DIR` | `modelos/clip-vit-base-patch32` | Pasta com `vision_model.onnx`, `text_model.onnx`, `tokenizer.json` |
+| `LIMIAR_CONFIANCA` | `0.5` | Probabilidade mínima para aprovar |
+| `LIMIAR_REVISAO` | (desligado) | Zona de revisão humana (ex.: `0.3`) |
+| `LIMIARES_POR_CATEGORIA` | (vazio) | JSON com limiares por categoria (ex.: `{"vidro": 0.6}`) |
+| `MAX_PEDIDOS_SIMULTANEOS` | `8` | Triagens em andamento antes de responder 503 |
+| `TAMANHO_MAXIMO_BYTES` | `10000000` | Tamanho máximo da foto (10 MB) |
+| `TIMEOUT_DOWNLOAD_SEGUNDOS` | `10` | Timeout do download no storage |
+| `FECHAMENTO_HABILITADO` | `true` | Liga o job de fechamento de 24h |
+| `SERVER_PORT` | `8000` | Porta HTTP |
+| `CHAVE_API_ANTERIOR` | (desligada) | Chave antiga aceita durante rotação |
 
-Todos os erros têm o corpo `{"detail": "..."}`.
+> **Migração do Python**: substitua `URL_BANCO` por `DB_URL`/`DB_USER`/`DB_PASSWORD`; `MODELO_CLIP` por `CLIP_DIR`.
 
-### Variáveis de ambiente
-
-| Variável | Padrão | Para quê |
-|---|---|---|
-| `CHAVE_API` | obrigatória (≥ 16 caracteres) | valor esperado no header `X-Api-Key` |
-| `DB_URL` | obrigatória | URL JDBC do PostgreSQL do app (`jdbc:postgresql://host:5432/banco`) |
-| `DB_USER` / `DB_PASSWORD` | obrigatórias | credenciais do banco |
-| `HOSTS_PERMITIDOS` | obrigatória | hosts do storage das fotos, separados por vírgula (anti-SSRF) |
-| `CLIP_DIR` | `modelos/clip-vit-base-patch32` | pasta com `vision_model.onnx`, `text_model.onnx` e `tokenizer.json` |
-| `LIMIAR_CONFIANCA` | `0.5` | probabilidade mínima da categoria para aprovar |
-| `LIMIAR_REVISAO` | desligado | se definido (ex.: `0.3`), probabilidade entre ele e o limiar vira `pertinente: null` |
-| `LIMIARES_POR_CATEGORIA` | vazio | limiar por categoria, em JSON: `{"vidro": 0.6}` |
-| `MAX_PEDIDOS_SIMULTANEOS` | `8` | triagens em andamento; acima disso, 503 |
-| `CHAVE_API_ANTERIOR` | desligada | chave antiga aceita durante a rotação; remova depois |
-| `TAMANHO_MAXIMO_BYTES` | `10000000` | tamanho máximo da foto |
-| `TIMEOUT_DOWNLOAD_SEGUNDOS` | `10` | timeout do download no storage |
-| `FECHAMENTO_HABILITADO` | `true` | liga o job que encerra as janelas de 24h |
-| `SERVER_PORT` | `8000` | porta HTTP |
-
-> Migração: o serviço Python usava `URL_BANCO` (formato `postgresql://`) e `MODELO_CLIP` (id do Hugging Face). Na versão Java, use `DB_URL`/`DB_USER`/`DB_PASSWORD` e `CLIP_DIR`, e atualize o Secret do k8s.
-
-### Deploy (k3s)
+## Deploy (k3s)
 
 ```bash
 docker build -t ecociente-validador-fotos .
 ```
 
-- Os arquivos do CLIP vão dentro da imagem (baixados e conferidos no build): o pod sobe sem internet. Só CPU.
-- Porta 8000; readiness e liveness em `GET /saude` (dê folga no `initialDelaySeconds`: o modelo carrega antes de abrir a porta).
-- 1 réplica: o job de fechamento roda dentro da API e cada processo carrega o modelo inteiro na RAM. A JVM usa até 75% da memória do contêiner (`JAVA_TOOL_OPTIONS`); ajuste o `limits.memory` pelo consumo medido.
-- `CHAVE_API` e `DB_*` no Secret `validador-fotos`; gere a chave com `openssl rand -base64 32`.
-- Service `ClusterIP`: só os serviços do cluster chamam.
-- O CronJob de fechamento das janelas não é mais necessário: o job roda dentro da API (desligue com `FECHAMENTO_HABILITADO=false` se preferir outro arranjo).
+**Características**:
+- Arquivos CLIP embutidos na imagem (baixados no build) → pod sobe sem internet
+- Só CPU; readiness/liveness em `GET /saude`
+- 1 réplica (job de fechamento roda dentro da API, carrega modelo inteiro na RAM)
+- JVM usa até 75% da memória do contêiner (`JAVA_TOOL_OPTIONS`)
+- `CHAVE_API` e `DB_*` em Secret `validador-fotos`; gere a chave: `openssl rand -base64 32`
+- Service `ClusterIP` (apenas serviços internos chamam)
 
-### Observabilidade
+## Observabilidade
 
-- `GET /metrics` (Prometheus, sem chave; exponha só dentro do cluster): `validacoes_total{categoria,status,pertinente}`, `validacao_segundos`, `confianca_modelo{categoria}` e `pedidos_rejeitados_total`. Queda da confiança média sem mudança de modelo = mudou o tipo de foto que chega.
-- Cada veredito sai no log como uma linha JSON com `id_postagem` e sem a URL; junto com a correção do moderador, vira o dataset de calibração.
-- Rotação de chave: suba `CHAVE_API` nova e `CHAVE_API_ANTERIOR` antiga, troque nos chamadores, depois remova a anterior.
+- **`GET /metrics`** (Prometheus, sem chave; exponha só dentro do cluster): métricas `validacoes_total{categoria,status,pertinente}`, `validacao_segundos`, `confianca_modelo{categoria}`, `pedidos_rejeitados_total`
+- **Logs**: cada veredito sai como uma linha JSON com `id_postagem` (URL não aparece)
+- **Rotação de chave**: suba `CHAVE_API` nova + `CHAVE_API_ANTERIOR` antiga, atualize chamadores, remova anterior
 
-### Calibração
+## Contribuindo
 
-Fotos reais em `amostras/<categoria>/` (papel, plastico, vidro, metal, organico) e `amostras/nao_residuo/`, ~20 por pasta, tiradas com celular:
+Leia o [CONTRIBUTING.md](CONTRIBUTING.md) e respeite o [Código de Conduta](CODE_OF_CONDUCT.md).
 
-```bash
-./gradlew calibrar -PpastaAmostras=amostras                        # tabela geral e por categoria
-```
+Para reportar uma vulnerabilidade de segurança, **não abra issue pública** — siga o [SECURITY.md](SECURITY.md).
 
-Use em `LIMIAR_CONFIANCA` o menor limiar com `aprovaria_errada` ≤ 5%.
-
-## 📫 Contribuindo para o Validador de Postagens
-
-Para contribuir com o Validador de Postagens, siga estas etapas:
-
-1. Clone este repositório.
-2. Crie um branch: `git checkout -b <nome_branch>`.
-3. Faça suas alterações e confirme-as: `git commit -m '<mensagem_commit>'`
-4. Envie para o branch: `git push origin <nome_branch>`
-5. Crie a solicitação de pull (o PR Bot gera a descrição automaticamente).
-
-Como alternativa, consulte a documentação do GitHub em [como criar uma solicitação pull](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request).
-
-## 🤝 Colaboradores
-
-Agradecemos às seguintes pessoas que contribuíram para este projeto:
-
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/shinitihm" title="Perfil do Heitor no GitHub">
-        <img src="https://avatars.githubusercontent.com/u/187130131?v=4" width="100px;" alt="Foto do Heitor Shiniti Miasato no GitHub"/><br>
-        <sub>
-          <b>Heitor Shiniti Miasato</b>
-        </sub>
-      </a>
-    </td>
-  </tr>
-</table>
-
-## 📝 Licença
+## Licença
 
 Esse projeto está sob licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
