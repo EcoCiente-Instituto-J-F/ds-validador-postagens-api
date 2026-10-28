@@ -14,7 +14,6 @@ public record VeredictoFotoResponse(
     Double confianca,
     String hashFoto,
     List<String> sinais,
-    boolean segundaOpiniao,
     List<AlternativaResponse> alternativas,
     String mensagem) {
 
@@ -27,7 +26,6 @@ public record VeredictoFotoResponse(
         veredito.confianca(),
         veredito.hashFoto(),
         veredito.sinais(),
-        veredito.segundaOpiniao(),
         veredito.alternativas().stream().map(AlternativaResponse::de).toList(),
         veredito.mensagem());
   }

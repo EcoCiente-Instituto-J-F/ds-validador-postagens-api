@@ -9,7 +9,7 @@ import java.util.List;
 
 import br.com.ecociente.validador.core.domain.Categorias;
 import br.com.ecociente.validador.core.domain.ClasseProbabilidade;
-import br.com.ecociente.validador.core.exception.FotoInvalidaException;
+import br.com.ecociente.validador.core.exception.FotoException;
 import br.com.ecociente.validador.dataprovider.foto.DecodificadorFoto;
 import br.com.ecociente.validador.dataprovider.visao.CabecaTreinada;
 import br.com.ecociente.validador.dataprovider.visao.ClassificadorClipGateway;
@@ -109,7 +109,7 @@ public final class TreinamentoCabecaMain {
   private static BufferedImage carregar(Path arquivo) throws IOException {
     try {
       return DecodificadorFoto.decodificar(Files.readAllBytes(arquivo)).imagem();
-    } catch (FotoInvalidaException erro) {
+    } catch (FotoException erro) {
       System.out.println("--- " + arquivo + ": pulada (" + erro.getMessage() + ")");
       return null;
     }

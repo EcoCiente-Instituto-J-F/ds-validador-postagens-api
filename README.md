@@ -36,7 +36,7 @@ O projeto ainda está em desenvolvimento e as próximas atualizações serão vo
 - [ ] Rodar a imagem Docker e o teste de integração com PostgreSQL (`./gradlew testeBanco`, precisa de Docker)
 - [ ] Calibrar o limiar com fotos reais (`./gradlew calibrar`)
 - [ ] Suporte a HEIC (fotos de iPhone): o Java não decodifica HEIC hoje
-- [ ] Rebaixar "pessoa confiável" com histórico ruim (`sp_atualizar_trust_score` hoje só promove — ajuste no SQL)
+- [x] Rebaixar "pessoa confiável" com histórico ruim (`sp_atualizar_trust_score` agora rebaixa a `morador_comum` se o score cair abaixo do limiar; ajuste no SQL de teste, aplicar também no banco do app)
 
 ## Pré-requisitos
 

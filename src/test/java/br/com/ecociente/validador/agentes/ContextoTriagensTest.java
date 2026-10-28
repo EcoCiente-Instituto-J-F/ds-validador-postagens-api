@@ -19,7 +19,7 @@ class ContextoTriagensTest {
   @Test
   void descreveVereditoEConfianca() {
     var contexto = new ContextoTriagens();
-    contexto.registrar(new VeredictoFoto(StatusTriagem.OK, false, "plastico", "vidro", 87.5, null, List.of(), false,
+    contexto.registrar(new VeredictoFoto(StatusTriagem.OK, false, "plastico", "vidro", 87.5, null, List.of(),
         List.of(), "A foto parece conter vidro, não plástico."));
 
     assertThat(contexto.texto()).isEqualTo(
