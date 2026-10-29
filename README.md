@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/card-readme.png" alt="Card do repositório" width="100%">
+</p>
+
 # Validador de Postagens — EcoCiente
 
 ![Java](https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=java&logoColor=white)
